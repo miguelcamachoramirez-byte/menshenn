@@ -1,0 +1,47 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  position     String?  // Cargo / puesto de la persona
+  role         String   @default("user") // "admin" | "user"
+  createdAt    DateTime @default(now())
+
+  @@map("users")
+}
+
+model Recipient {
+  id        String   @id @default(cuid())
+  idNumber  String   @unique // Numero de cedula (identificador unico)
+  name      String   // Nombre de la persona destinataria
+  area      String?  // Area / cargo (opcional)
+  createdAt DateTime @default(now())
+
+  reports   Report[] @relation("ReportRecipients")
+
+  @@map("recipients")
+}
+
+model Report {
+  id        String   @id @default(cuid())
+  author    String   // Quien hizo el reporte
+  recipient String   // Resumen de destinatarios (texto legible, para mostrar/exportar)
+  reportDate DateTime // Fecha del reporte
+  content   String?  // Contenido / detalle (opcional)
+  createdAt DateTime @default(now())
+  editedAt  DateTime? // Fecha de la ultima edicion (null si nunca se edito)
+  editedBy  String?   // Quien hizo la ultima edicion
+
+  recipients Recipient[] @relation("ReportRecipients")
+
+  @@map("reports")
+}
