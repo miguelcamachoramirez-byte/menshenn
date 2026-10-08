@@ -476,10 +476,7 @@ export default function HomePage() {
                 </div>
               ) : (
                 <>
-                  <div
-                    className="card"
-                    style={{ padding: 0, overflow: "hidden" }}
-                  >
+                  <div className="card table-wrap" style={{ padding: 0 }}>
                     <table className="data-table">
                       <thead>
                         <tr>

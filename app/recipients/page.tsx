@@ -180,7 +180,7 @@ export default function RecipientsPage() {
             arriba.
           </div>
         ) : (
-          <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+          <div className="card table-wrap" style={{ padding: 0 }}>
             <table className="users-table">
               <thead>
                 <tr>

@@ -250,7 +250,7 @@ export default function AdminPage() {
         ) : users.length === 0 ? (
           <div className="empty-state">No hay usuarios registrados.</div>
         ) : (
-          <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+          <div className="card table-wrap" style={{ padding: 0 }}>
             <table className="users-table">
               <thead>
                 <tr>
