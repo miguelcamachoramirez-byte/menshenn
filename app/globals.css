@@ -1343,10 +1343,23 @@ body {
   .detail-row td {
     display: block;
     text-align: left;
+    overflow: hidden;
   }
 
   .detail-row td::before {
     content: "";
+  }
+
+  .detail-box {
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  /* La imagen del detalle y de la traza se ajustan al ancho en movil */
+  .report-image img,
+  .trace-image img {
+    max-width: 100%;
+    height: auto;
   }
 }
 
@@ -1466,8 +1479,11 @@ body {
 }
 
 .report-image img {
-  max-width: 320px;
+  width: auto;
+  max-width: min(320px, 100%);
   max-height: 240px;
+  height: auto;
+  object-fit: contain;
   border-radius: 10px;
   border: 1px solid var(--border);
   cursor: zoom-in;
