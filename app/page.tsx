@@ -610,9 +610,9 @@ export default function HomePage() {
                           return (
                             <Fragment key={report.id}>
                               <tr
-                                className={
-                                  expandable ? "row-clickable" : undefined
-                                }
+                                className={`${
+                                  expandable ? "row-clickable" : ""
+                                } ${isOpen ? "row-open" : ""}`.trim()}
                                 onClick={
                                   expandable
                                     ? () =>

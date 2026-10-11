@@ -1339,11 +1339,36 @@ body {
     flex-wrap: wrap;
   }
 
-  /* La fila de detalle expandida ocupa todo el ancho */
+  /* Reporte abierto: parte superior de un bloque continuo con su detalle.
+     Acento morado a la izquierda via box-shadow inset (sin cortes). */
+  .data-table tbody tr.row-open {
+    border-bottom: none;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    margin-bottom: 0 !important;
+    padding-bottom: 0.5rem;
+    box-shadow: inset 3px 0 0 0 var(--accent);
+  }
+
+  /* La fila de detalle expandida: parte inferior del mismo bloque,
+     pegada a la de arriba (sin gap). */
+  .detail-row {
+    margin-top: 0 !important;
+    margin-bottom: 0.85rem;
+  }
+
   .detail-row td {
     display: block;
     text-align: left;
     overflow: hidden;
+    background: var(--panel) !important;
+    border: 1px solid var(--border);
+    border-top: none;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    border-radius: 0 0 12px 12px;
+    padding: 0 !important;
+    box-shadow: inset 3px 0 0 0 var(--accent);
   }
 
   .detail-row td::before {

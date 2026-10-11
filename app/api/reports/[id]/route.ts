@@ -88,54 +88,54 @@ export async function PUT(
     const now = new Date();
     const newContent = content ? String(content).trim() : null;
 
-    // Transaccion: actualiza el reporte, guarda la traza, y luego lee el
-    // reporte final (ya con el nuevo registro de edicion incluido).
-    const report = await prisma.$transaction(async (tx) => {
-      await tx.report.update({
-        where: { id },
-        data: {
-          recipient: summary,
-          reportDate: parsedDate,
-          content: newContent,
-          imageUrl: imageUrl ? String(imageUrl) : null,
-          editedAt: now,
-          editedBy,
-          recipients: { set: ids.map((rid) => ({ id: rid })) },
-        },
-      });
+    // Operaciones secuenciales (sin transaccion interactiva, que no es
+    // compatible con el pooler "transaction" de Supabase y agota el pool).
 
-      // Guarda en la traza el estado PREVIO del reporte (como estaba
-      // antes de esta edicion), para poder ver que decia antes.
-      await tx.reportEdit.create({
-        data: {
-          reportId: id,
-          editedBy,
-          editedAt: now,
-          recipient: existing.recipient,
-          reportDate: existing.reportDate,
-          content: existing.content,
-          imageUrl: existing.imageUrl,
-        },
-      });
+    // 1) Guarda en la traza el estado PREVIO del reporte (version anterior).
+    await prisma.reportEdit.create({
+      data: {
+        reportId: id,
+        editedBy,
+        editedAt: now,
+        recipient: existing.recipient,
+        reportDate: existing.reportDate,
+        content: existing.content,
+        imageUrl: existing.imageUrl,
+      },
+    });
 
-      return tx.report.findUnique({
-        where: { id },
-        include: {
-          recipients: { select: { id: true, name: true, area: true } },
-          edits: {
-            orderBy: { editedAt: "desc" },
-            select: {
-              id: true,
-              editedBy: true,
-              editedAt: true,
-              recipient: true,
-              reportDate: true,
-              content: true,
-              imageUrl: true,
-            },
+    // 2) Actualiza el reporte a su nuevo estado.
+    await prisma.report.update({
+      where: { id },
+      data: {
+        recipient: summary,
+        reportDate: parsedDate,
+        content: newContent,
+        imageUrl: imageUrl ? String(imageUrl) : null,
+        editedAt: now,
+        editedBy,
+        recipients: { set: ids.map((rid) => ({ id: rid })) },
+      },
+    });
+
+    // 3) Lee el reporte final con su traza.
+    const report = await prisma.report.findUnique({
+      where: { id },
+      include: {
+        recipients: { select: { id: true, name: true, area: true } },
+        edits: {
+          orderBy: { editedAt: "desc" },
+          select: {
+            id: true,
+            editedBy: true,
+            editedAt: true,
+            recipient: true,
+            reportDate: true,
+            content: true,
+            imageUrl: true,
           },
         },
-      });
+      },
     });
 
     return NextResponse.json(report);
