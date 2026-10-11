@@ -96,7 +96,7 @@ export default function DashboardPage() {
               </span>
             </div>
             <div className="stat-card">
-              <span className="stat-label">Destinatarios</span>
+              <span className="stat-label">Tipos de reporte</span>
               <span className="stat-value">
                 {data.summary.totalRecipients}
               </span>
@@ -186,7 +186,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="card">
-              <h2 className="chart-title">Top destinatarios</h2>
+              <h2 className="chart-title">Top tipos de reporte</h2>
               {data.topRecipients.length === 0 ? (
                 <div className="empty-state">Sin datos.</div>
               ) : (

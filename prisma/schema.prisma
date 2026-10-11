@@ -14,16 +14,19 @@ model User {
   name         String?
   position     String?  // Cargo / puesto de la persona
   role         String   @default("user") // "admin" | "user"
+  mustChangePassword Boolean @default(true) // Obliga a cambiar la contrasena en el proximo ingreso
   createdAt    DateTime @default(now())
 
   @@map("users")
 }
 
+// Tipo de riesgo (fisico, biologico, mecanico, quimico, etc.)
+// La tabla se mantiene como "recipients" por compatibilidad con los datos existentes.
 model Recipient {
   id        String   @id @default(cuid())
-  idNumber  String   @unique // Numero de cedula (identificador unico)
-  name      String   // Nombre de la persona destinataria
-  area      String?  // Area / cargo (opcional)
+  idNumber  String?  @unique // (legado, ya no se usa para tipos de riesgo)
+  name      String   // Nombre del tipo de riesgo
+  area      String?  // (legado, opcional)
   createdAt DateTime @default(now())
 
   reports   Report[] @relation("ReportRecipients")
@@ -33,7 +36,8 @@ model Recipient {
 
 model Report {
   id        String   @id @default(cuid())
-  author    String   // Quien hizo el reporte
+  author    String   // Nombre de quien hizo el reporte (texto para mostrar)
+  authorId  String?  // Id del usuario que lo creo (para validar permisos)
   recipient String   // Resumen de destinatarios (texto legible, para mostrar/exportar)
   reportDate DateTime // Fecha del reporte
   content   String?  // Contenido / detalle (opcional)
@@ -42,6 +46,23 @@ model Report {
   editedBy  String?   // Quien hizo la ultima edicion
 
   recipients Recipient[] @relation("ReportRecipients")
+  edits      ReportEdit[]
 
   @@map("reports")
+}
+
+model ReportEdit {
+  id          String   @id @default(cuid())
+  reportId    String
+  editedBy    String   // Nombre de quien edito
+  editedAt    DateTime @default(now())
+  // Resumen de como quedo el reporte tras la edicion (traza)
+  recipient   String
+  reportDate  DateTime
+  content     String?
+
+  report      Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@map("report_edits")
 }

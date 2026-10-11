@@ -1,16 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/session";
+import { requireAdmin, AuthError } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/dashboard -> metricas agregadas (cualquier usuario logueado)
+// GET /api/dashboard -> metricas agregadas (solo admin)
 export async function GET() {
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado." }, { status: 401 });
-    }
+    await requireAdmin();
 
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -113,6 +110,9 @@ export async function GET() {
       topRecipients,
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error("Error en dashboard:", error);
     return NextResponse.json(
       { error: "No se pudieron obtener las metricas." },

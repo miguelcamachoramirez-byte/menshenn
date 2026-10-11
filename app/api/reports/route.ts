@@ -14,6 +14,17 @@ export async function GET() {
         recipients: {
           select: { id: true, name: true, area: true },
         },
+        edits: {
+          orderBy: { editedAt: "desc" },
+          select: {
+            id: true,
+            editedBy: true,
+            editedAt: true,
+            recipient: true,
+            reportDate: true,
+            content: true,
+          },
+        },
       },
     });
     return NextResponse.json(reports);
@@ -78,6 +89,7 @@ export async function POST(request: Request) {
     const report = await prisma.report.create({
       data: {
         author,
+        authorId: session.userId,
         recipient: summary,
         reportDate: parsedDate,
         content: content ? String(content).trim() : null,
@@ -85,6 +97,7 @@ export async function POST(request: Request) {
       },
       include: {
         recipients: { select: { id: true, name: true, area: true } },
+        edits: true,
       },
     });
 

@@ -17,7 +17,12 @@ export async function middleware(request: NextRequest) {
   const isAdminArea =
     pathname === "/admin" ||
     pathname.startsWith("/admin/") ||
-    pathname.startsWith("/api/admin");
+    pathname.startsWith("/api/admin") ||
+    pathname === "/dashboard" ||
+    pathname.startsWith("/dashboard/") ||
+    pathname.startsWith("/api/dashboard") ||
+    pathname === "/recipients" ||
+    pathname.startsWith("/recipients/");
 
   // API protegida -> responde 401/403 en JSON
   if (pathname.startsWith("/api/")) {
@@ -47,6 +52,29 @@ export async function middleware(request: NextRequest) {
 
   // Si ya tiene sesion y va al login, mandalo al inicio
   if (session && pathname === "/login") {
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+
+  // Si debe cambiar la contrasena, forzar la pagina de cambio
+  if (session?.mustChangePassword) {
+    const allowed =
+      pathname === "/cambiar-contrasena" ||
+      pathname === "/api/auth/change-password" ||
+      pathname === "/api/auth/logout" ||
+      pathname === "/api/auth/me";
+    if (!allowed) {
+      return NextResponse.redirect(
+        new URL("/cambiar-contrasena", request.url)
+      );
+    }
+  }
+
+  // Si NO debe cambiarla pero intenta entrar a esa pagina, mandalo al inicio
+  if (
+    session &&
+    !session.mustChangePassword &&
+    pathname === "/cambiar-contrasena"
+  ) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 

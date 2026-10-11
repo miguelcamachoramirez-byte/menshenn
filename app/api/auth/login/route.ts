@@ -47,6 +47,7 @@ export async function POST(request: Request) {
       role: user.role,
       name: user.name,
       position: user.position,
+      mustChangePassword: user.mustChangePassword,
     });
 
     cookies().set(SESSION_COOKIE, token, {
@@ -64,6 +65,7 @@ export async function POST(request: Request) {
         name: user.name,
         position: user.position,
         role: user.role,
+        mustChangePassword: user.mustChangePassword,
       },
     });
   } catch (error) {

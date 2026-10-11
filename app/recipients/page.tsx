@@ -5,11 +5,9 @@ import Link from "next/link";
 import Loader from "../components/Loader";
 import ConfirmDialog from "../components/ConfirmDialog";
 
-type Recipient = {
+type RiskType = {
   id: string;
-  idNumber: string;
   name: string;
-  area: string | null;
   createdAt: string;
 };
 
@@ -23,41 +21,39 @@ function formatDate(value: string) {
   });
 }
 
-export default function RecipientsPage() {
-  const [recipients, setRecipients] = useState<Recipient[]>([]);
+export default function RiskTypesPage() {
+  const [items, setItems] = useState<RiskType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [idNumber, setIdNumber] = useState("");
   const [name, setName] = useState("");
-  const [area, setArea] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [toDelete, setToDelete] = useState<Recipient | null>(null);
+  const [toDelete, setToDelete] = useState<RiskType | null>(null);
 
-  async function loadRecipients() {
+  async function load() {
     try {
       setLoading(true);
       setError(null);
       const res = await fetch("/api/recipients", { cache: "no-store" });
-      if (!res.ok) throw new Error("No se pudieron cargar los destinatarios.");
-      setRecipients(await res.json());
+      if (!res.ok) throw new Error("No se pudieron cargar los tipos de reporte.");
+      setItems(await res.json());
     } catch (err: any) {
-      setError(err.message || "Error al cargar destinatarios.");
+      setError(err.message || "Error al cargar los tipos de reporte.");
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    loadRecipients();
+    load();
   }, []);
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!idNumber.trim() || !name.trim()) {
-      setError("La cedula y el nombre son obligatorios.");
+    if (!name.trim()) {
+      setError("El nombre del tipo de reporte es obligatorio.");
       return;
     }
     try {
@@ -65,21 +61,19 @@ export default function RecipientsPage() {
       const res = await fetch("/api/recipients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idNumber, name, area }),
+        body: JSON.stringify({ name }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "No se pudo crear el destinatario.");
+        throw new Error(data.error || "No se pudo crear el tipo de reporte.");
       }
-      const created: Recipient = await res.json();
-      setRecipients((prev) =>
+      const created: RiskType = await res.json();
+      setItems((prev) =>
         [...prev, created].sort((a, b) => a.name.localeCompare(b.name))
       );
-      setIdNumber("");
       setName("");
-      setArea("");
     } catch (err: any) {
-      setError(err.message || "No se pudo crear el destinatario.");
+      setError(err.message || "No se pudo crear el tipo de reporte.");
     } finally {
       setSubmitting(false);
     }
@@ -95,11 +89,11 @@ export default function RecipientsPage() {
       const res = await fetch(`/api/recipients/${r.id}`, { method: "DELETE" });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "No se pudo eliminar el destinatario.");
+        throw new Error(data.error || "No se pudo eliminar el tipo de reporte.");
       }
-      setRecipients((prev) => prev.filter((x) => x.id !== r.id));
+      setItems((prev) => prev.filter((x) => x.id !== r.id));
     } catch (err: any) {
-      setError(err.message || "No se pudo eliminar el destinatario.");
+      setError(err.message || "No se pudo eliminar el tipo de reporte.");
     } finally {
       setDeletingId(null);
     }
@@ -108,7 +102,7 @@ export default function RecipientsPage() {
   return (
     <main className="container">
       <div className="topbar">
-        <div className="user-info">Destinatarios</div>
+        <div className="user-info">Tipos de reporte</div>
         <div className="topbar-actions">
           <Link href="/" className="nav-link">
             Volver a reportes
@@ -117,44 +111,24 @@ export default function RecipientsPage() {
       </div>
 
       <header className="header">
-        <h1>Destinatarios</h1>
-        <p>Personas a las que se pueden dirigir los reportes.</p>
+        <h1>Tipos de reporte</h1>
+        <p>Categorias que se asignan a los reportes.</p>
       </header>
 
       {error && <div className="error-msg">{error}</div>}
 
       <section className="card">
-        <h2>Nuevo destinatario</h2>
+        <h2>Nuevo tipo de reporte</h2>
         <form onSubmit={handleCreate}>
           <div className="form-grid">
-            <div className="field">
-              <label htmlFor="idNumber">Numero de cedula</label>
-              <input
-                id="idNumber"
-                type="text"
-                value={idNumber}
-                onChange={(e) => setIdNumber(e.target.value)}
-                placeholder="Ej. 1012345678"
-              />
-            </div>
-            <div className="field">
+            <div className="field full">
               <label htmlFor="name">Nombre</label>
               <input
                 id="name"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Ej. Juan Perez"
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="area">Area / cargo (opcional)</label>
-              <input
-                id="area"
-                type="text"
-                value={area}
-                onChange={(e) => setArea(e.target.value)}
-                placeholder="Ej. Gerencia"
+                placeholder="Ej. Fisico, Biologico, Mecanico, Quimico"
               />
             </div>
           </div>
@@ -162,21 +136,21 @@ export default function RecipientsPage() {
             <button
               type="submit"
               className="btn btn-primary"
-              disabled={submitting}
+              disabled={submitting || name.trim() === ""}
             >
-              {submitting ? "Guardando..." : "Agregar destinatario"}
+              {submitting ? "Guardando..." : "Agregar tipo de reporte"}
             </button>
           </div>
         </form>
       </section>
 
       <section>
-        <h2 className="section-title">Lista de destinatarios</h2>
+        <h2 className="section-title">Lista de tipos de reporte</h2>
         {loading ? (
-          <Loader text="Cargando destinatarios..." />
-        ) : recipients.length === 0 ? (
+          <Loader text="Cargando tipos de reporte..." />
+        ) : items.length === 0 ? (
           <div className="empty-state">
-            Aun no hay destinatarios. Agrega el primero con el formulario de
+            Aun no hay tipos de reporte. Agrega el primero con el formulario de
             arriba.
           </div>
         ) : (
@@ -184,21 +158,17 @@ export default function RecipientsPage() {
             <table className="users-table">
               <thead>
                 <tr>
-                  <th>Cedula</th>
                   <th>Nombre</th>
-                  <th>Area / cargo</th>
                   <th>Creado</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {recipients.map((r) => (
+                {items.map((r) => (
                   <tr key={r.id}>
-                    <td>{r.idNumber}</td>
-                    <td>{r.name}</td>
-                    <td>{r.area || "-"}</td>
-                    <td>{formatDate(r.createdAt)}</td>
-                    <td style={{ textAlign: "right" }}>
+                    <td data-label="Nombre">{r.name}</td>
+                    <td data-label="Creado">{formatDate(r.createdAt)}</td>
+                    <td className="cell-actions" style={{ textAlign: "right" }}>
                       <button
                         className="btn btn-danger"
                         onClick={() => setToDelete(r)}
@@ -217,14 +187,15 @@ export default function RecipientsPage() {
 
       <ConfirmDialog
         open={toDelete !== null}
-        title="Eliminar destinatario"
+        title="Eliminar tipo de reporte"
         message={
           toDelete
-            ? `Vas a eliminar al destinatario ${toDelete.name}. Esta accion no se puede deshacer.`
+            ? `Vas a eliminar el tipo de reporte "${toDelete.name}". Esta accion no se puede deshacer.`
             : ""
         }
         confirmText="Eliminar"
         danger
+        loading={deletingId !== null}
         onConfirm={confirmDelete}
         onCancel={() => setToDelete(null)}
       />

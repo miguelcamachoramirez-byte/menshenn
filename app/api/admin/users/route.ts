@@ -77,7 +77,8 @@ export async function POST(request: Request) {
 
     const passwordHash = await hashPassword(password);
     const user = await prisma.user.create({
-      data: { email, name, position, passwordHash, role },
+      // Debe cambiar la contrasena temporal en su primer ingreso
+      data: { email, name, position, passwordHash, role, mustChangePassword: true },
       select: {
         id: true,
         email: true,

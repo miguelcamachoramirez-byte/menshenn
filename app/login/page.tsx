@@ -48,7 +48,9 @@ export default function LoginPage() {
     <main className="login-wrap">
       <div className="login-card">
         <h1>Iniciar sesion</h1>
-        <p className="subtitle">Accede al gestor de reportes</p>
+        <p className="subtitle">
+          Reporte de actos y condiciones inseguras
+        </p>
 
         {error && <div className="error-msg">{error}</div>}
 

@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/session";
+import { getSession, requireAdmin, AuthError } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/recipients -> lista destinatarios
+// GET /api/recipients -> lista destinatarios (cualquier logueado, para el formulario)
 export async function GET() {
   try {
     const session = await getSession();
@@ -25,41 +25,41 @@ export async function GET() {
   }
 }
 
-// POST /api/recipients -> crea un destinatario
+// POST /api/recipients -> crea un destinatario (solo admin)
 export async function POST(request: Request) {
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado." }, { status: 401 });
-    }
+    await requireAdmin();
 
     const body = await request.json();
-    const idNumber = String(body?.idNumber ?? "").trim();
     const name = String(body?.name ?? "").trim();
-    const area = body?.area ? String(body.area).trim() : null;
 
-    if (!idNumber || !name) {
+    if (!name) {
       return NextResponse.json(
-        { error: "La cedula y el nombre son obligatorios." },
+        { error: "El nombre del tipo de riesgo es obligatorio." },
         { status: 400 }
       );
     }
 
-    // Evita registrar dos veces a la misma persona
-    const existing = await prisma.recipient.findUnique({ where: { idNumber } });
+    // Evita duplicados por nombre (case-insensitive)
+    const existing = await prisma.recipient.findFirst({
+      where: { name: { equals: name, mode: "insensitive" } },
+    });
     if (existing) {
       return NextResponse.json(
-        { error: "Ya existe un destinatario con esa cedula." },
+        { error: "Ya existe un tipo de riesgo con ese nombre." },
         { status: 409 }
       );
     }
 
     const recipient = await prisma.recipient.create({
-      data: { idNumber, name, area },
+      data: { name },
     });
 
     return NextResponse.json(recipient, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error("Error al crear destinatario:", error);
     return NextResponse.json(
       { error: "No se pudo crear el destinatario." },

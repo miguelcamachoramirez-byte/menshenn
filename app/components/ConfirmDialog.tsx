@@ -7,6 +7,7 @@ type Props = {
   confirmText?: string;
   cancelText?: string;
   danger?: boolean;
+  loading?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 };
@@ -18,13 +19,20 @@ export default function ConfirmDialog({
   confirmText = "Confirmar",
   cancelText = "Cancelar",
   danger = false,
+  loading = false,
   onConfirm,
   onCancel,
 }: Props) {
   if (!open) return null;
 
   return (
-    <div className="modal-overlay" onClick={onCancel}>
+    <div
+      className="modal-overlay"
+      onClick={() => {
+        // No permitir cerrar mientras se ejecuta la accion
+        if (!loading) onCancel();
+      }}
+    >
       <div
         className="modal"
         role="dialog"
@@ -34,16 +42,22 @@ export default function ConfirmDialog({
         <h3 className="modal-title">{title}</h3>
         <p className="modal-message">{message}</p>
         <div className="modal-actions">
-          <button type="button" className="btn btn-ghost" onClick={onCancel}>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={onCancel}
+            disabled={loading}
+          >
             {cancelText}
           </button>
           <button
             type="button"
             className={`btn ${danger ? "btn-danger-solid" : "btn-primary"}`}
             onClick={onConfirm}
+            disabled={loading}
             autoFocus
           >
-            {confirmText}
+            {loading ? "Procesando..." : confirmText}
           </button>
         </div>
       </div>

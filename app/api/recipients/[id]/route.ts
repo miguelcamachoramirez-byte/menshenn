@@ -1,19 +1,16 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/session";
+import { requireAdmin, AuthError } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-// DELETE /api/recipients/:id -> elimina un destinatario
+// DELETE /api/recipients/:id -> elimina un destinatario (solo admin)
 export async function DELETE(
   _request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado." }, { status: 401 });
-    }
+    await requireAdmin();
 
     const { id } = params;
     if (!id) {
@@ -26,6 +23,9 @@ export async function DELETE(
     await prisma.recipient.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (error: any) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     if (error?.code === "P2025") {
       return NextResponse.json(
         { error: "El destinatario no existe." },

@@ -13,9 +13,19 @@ type RecipientRef = {
   area: string | null;
 };
 
+type ReportEdit = {
+  id: string;
+  editedBy: string;
+  editedAt: string;
+  recipient: string;
+  reportDate: string;
+  content: string | null;
+};
+
 type Report = {
   id: string;
   author: string;
+  authorId: string | null;
   recipient: string;
   reportDate: string;
   content: string | null;
@@ -23,6 +33,7 @@ type Report = {
   editedAt: string | null;
   editedBy: string | null;
   recipients: RecipientRef[];
+  edits: ReportEdit[];
 };
 
 type CurrentUser = {
@@ -47,6 +58,19 @@ function formatDate(value: string) {
     year: "numeric",
     month: "long",
     day: "numeric",
+  });
+}
+
+// Fecha + hora, para la traza de ediciones
+function formatDateTime(value: string) {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleString("es-ES", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 
@@ -177,8 +201,12 @@ export default function HomePage() {
     e.preventDefault();
     setError(null);
 
-    if (selectedRecipientIds.length === 0 || !reportDate) {
-      setError("Debes elegir al menos un destinatario y una fecha.");
+    if (
+      selectedRecipientIds.length === 0 ||
+      !reportDate ||
+      content.trim() === ""
+    ) {
+      setError("Todos los campos son obligatorios: tipo de reporte, fecha y detalle.");
       return;
     }
 
@@ -249,7 +277,7 @@ export default function HomePage() {
   }
 
   function exportToCsv(rows: Report[]) {
-    const header = ["Autor", "Destinatarios", "Fecha", "Detalle", "Editado"];
+    const header = ["Autor", "Tipo de reporte", "Fecha", "Detalle", "Editado"];
     const lines = rows.map((r) =>
       [
         csvCell(r.author),
@@ -293,16 +321,18 @@ export default function HomePage() {
           )}
         </div>
         <div className="topbar-actions">
-          <Link href="/dashboard" className="nav-link">
-            Metricas
-          </Link>
-          <Link href="/recipients" className="nav-link">
-            Destinatarios
-          </Link>
           {user?.role === "admin" && (
-            <Link href="/admin" className="nav-link">
-              Administrar usuarios
-            </Link>
+            <>
+              <Link href="/dashboard" className="nav-link">
+                Metricas
+              </Link>
+              <Link href="/recipients" className="nav-link">
+                Tipos de reporte
+              </Link>
+              <Link href="/admin" className="nav-link">
+                Administrar usuarios
+              </Link>
+            </>
           )}
           <button
             className="btn btn-ghost"
@@ -315,7 +345,7 @@ export default function HomePage() {
       </div>
 
       <header className="header">
-        <h1>Gestor de Reportes</h1>
+        <h1>Reporte de actos y condiciones inseguras</h1>
         <p>Crea, consulta, edita y elimina reportes.</p>
       </header>
 
@@ -347,19 +377,27 @@ export default function HomePage() {
             <div className="field full">
               <div className="recipients-label">
                 <label htmlFor="recipientsSelect">
-                  A quien va dirigido (uno o varios)
+                  Tipo de reporte (uno o varios)
                 </label>
-                <Link href="/recipients" className="field-hint-link">
-                  + Administrar destinatarios
-                </Link>
+                {user?.role === "admin" && (
+                  <Link href="/recipients" className="field-hint-link">
+                    + Administrar tipos de reporte
+                  </Link>
+                )}
               </div>
               {recipients.length === 0 ? (
                 <div className="empty-state" style={{ padding: "1rem" }}>
-                  No hay destinatarios. Agrega al menos uno en{" "}
-                  <Link href="/recipients" className="field-hint-link">
-                    Destinatarios
-                  </Link>
-                  .
+                  {user?.role === "admin" ? (
+                    <>
+                      No hay tipos de reporte. Agrega al menos uno en{" "}
+                      <Link href="/recipients" className="field-hint-link">
+                        Tipos de reporte
+                      </Link>
+                      .
+                    </>
+                  ) : (
+                    "No hay tipos de reporte. Pide a un administrador que agregue tipos de reporte."
+                  )}
                 </div>
               ) : (
                 <MultiSelect
@@ -370,12 +408,12 @@ export default function HomePage() {
                   }))}
                   selected={selectedRecipientIds}
                   onChange={setSelectedRecipientIds}
-                  placeholder="Selecciona uno o varios destinatarios..."
+                  placeholder="Selecciona uno o varios tipos de reporte..."
                 />
               )}
             </div>
             <div className="field full">
-              <label htmlFor="content">Detalle (opcional)</label>
+              <label htmlFor="content">Detalle</label>
               <textarea
                 id="content"
                 value={content}
@@ -398,7 +436,12 @@ export default function HomePage() {
             <button
               type="submit"
               className="btn btn-primary"
-              disabled={submitting}
+              disabled={
+                submitting ||
+                selectedRecipientIds.length === 0 ||
+                !reportDate ||
+                content.trim() === ""
+              }
             >
               {submitting
                 ? "Guardando..."
@@ -448,7 +491,7 @@ export default function HomePage() {
                         setSearch(e.target.value);
                         setPage(1);
                       }}
-                      placeholder="Buscar por autor o destinatario..."
+                      placeholder="Buscar por autor o tipo de reporte..."
                     />
                   )}
                   <button
@@ -481,7 +524,7 @@ export default function HomePage() {
                       <thead>
                         <tr>
                           <th>Autor</th>
-                          <th>Destinatarios</th>
+                          <th>Tipo de reporte</th>
                           <th>Fecha</th>
                           <th>Detalle</th>
                           <th></th>
@@ -491,6 +534,12 @@ export default function HomePage() {
                         {pageRows.map((report) => {
                           const isOpen = expandedId === report.id;
                           const hasDetail = Boolean(report.content);
+                          const hasHistory = report.edits.length > 0;
+                          const expandable = hasDetail || hasHistory;
+                          const isAdmin = user?.role === "admin";
+                          // Solo el autor puede editar (ni siquiera el admin)
+                          const canEdit =
+                            user != null && report.authorId === user.id;
                           const recipientNames = report.recipients.length
                             ? report.recipients.map((x) => x.name).join(", ")
                             : report.recipient;
@@ -498,16 +547,16 @@ export default function HomePage() {
                             <Fragment key={report.id}>
                               <tr
                                 className={
-                                  hasDetail ? "row-clickable" : undefined
+                                  expandable ? "row-clickable" : undefined
                                 }
                                 onClick={
-                                  hasDetail
+                                  expandable
                                     ? () =>
                                         setExpandedId(isOpen ? null : report.id)
                                     : undefined
                                 }
                               >
-                                <td>
+                                <td data-label="Autor">
                                   <div className="cell-author">
                                     <span
                                       className="mini-avatar"
@@ -525,7 +574,7 @@ export default function HomePage() {
                                     </div>
                                   </div>
                                 </td>
-                                <td>
+                                <td data-label="Tipo de reporte">
                                   {report.recipients.length > 0 ? (
                                     <div className="recipient-tags">
                                       {report.recipients.map((x) => (
@@ -538,53 +587,87 @@ export default function HomePage() {
                                     recipientNames
                                   )}
                                 </td>
-                                <td className="nowrap">
+                                <td data-label="Fecha" className="nowrap">
                                   {formatDate(report.reportDate)}
                                 </td>
-                                <td className="cell-detail">
+                                <td data-label="Detalle" className="cell-detail">
                                   {report.content || "-"}
                                 </td>
-                                <td style={{ textAlign: "right" }}>
+                                <td
+                                  className="cell-actions"
+                                  style={{ textAlign: "right" }}
+                                >
                                   <div className="row-actions">
-                                    <button
-                                      className="btn btn-ghost"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        startEdit(report);
-                                      }}
-                                    >
-                                      Editar
-                                    </button>
-                                    <button
-                                      className="btn btn-danger"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setToDelete(report);
-                                      }}
-                                      disabled={deletingId === report.id}
-                                    >
-                                      {deletingId === report.id
-                                        ? "..."
-                                        : "Eliminar"}
-                                    </button>
+                                    {canEdit && (
+                                      <button
+                                        className="btn btn-ghost"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          startEdit(report);
+                                        }}
+                                      >
+                                        Editar
+                                      </button>
+                                    )}
+                                    {isAdmin && (
+                                      <button
+                                        className="btn btn-danger"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setToDelete(report);
+                                        }}
+                                        disabled={deletingId === report.id}
+                                      >
+                                        {deletingId === report.id
+                                          ? "..."
+                                          : "Eliminar"}
+                                      </button>
+                                    )}
                                   </div>
                                 </td>
                               </tr>
-                              {isOpen && hasDetail && (
+                              {isOpen && expandable && (
                                 <tr className="detail-row">
                                   <td colSpan={5}>
                                     <div className="detail-box">
-                                      <span className="label">Detalle</span>
-                                      <p>{report.content}</p>
-                                      {report.editedAt && (
-                                        <p className="edited-note">
-                                          Editado el{" "}
-                                          {formatDate(report.editedAt)}
-                                          {report.editedBy
-                                            ? ` por ${report.editedBy}`
-                                            : ""}
-                                          .
-                                        </p>
+                                      {hasDetail && (
+                                        <>
+                                          <span className="label">Detalle</span>
+                                          <p>{report.content}</p>
+                                        </>
+                                      )}
+
+                                      {hasHistory && (
+                                        <div className="trace">
+                                          <span className="label">
+                                            Traza de ediciones (versiones
+                                            anteriores)
+                                          </span>
+                                          <ul className="trace-list">
+                                            {report.edits.map((ed) => (
+                                              <li
+                                                key={ed.id}
+                                                className="trace-item"
+                                              >
+                                                <div className="trace-head">
+                                                  <strong>
+                                                    {formatDateTime(
+                                                      ed.editedAt
+                                                    )}
+                                                  </strong>
+                                                </div>
+                                                <div className="trace-body">
+                                                  Tipo: {ed.recipient} ·
+                                                  Fecha:{" "}
+                                                  {formatDate(ed.reportDate)}
+                                                  {ed.content
+                                                    ? ` · ${ed.content}`
+                                                    : ""}
+                                                </div>
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        </div>
                                       )}
                                     </div>
                                   </td>
@@ -660,6 +743,7 @@ export default function HomePage() {
         }
         confirmText="Eliminar"
         danger
+        loading={deletingId !== null}
         onConfirm={confirmDelete}
         onCancel={() => setToDelete(null)}
       />

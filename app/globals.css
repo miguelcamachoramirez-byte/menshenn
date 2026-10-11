@@ -956,6 +956,58 @@ body {
   color: #fbbf24;
 }
 
+/* Traza de ediciones */
+.trace {
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--border);
+}
+
+.trace-list {
+  list-style: none;
+  margin-top: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  position: relative;
+  padding-left: 1rem;
+}
+
+.trace-item {
+  position: relative;
+  padding-left: 0.9rem;
+  border-left: 2px solid var(--border);
+}
+
+.trace-item::before {
+  content: "";
+  position: absolute;
+  left: -5px;
+  top: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.trace-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-size: 0.9rem;
+}
+
+.trace-when {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.trace-body {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-top: 0.2rem;
+}
+
 /* Modal de confirmacion */
 .modal-overlay {
   position: fixed;
@@ -1177,9 +1229,112 @@ body {
     font-size: 1.4rem;
   }
 
-  /* Detalle de celda sin recorte agresivo en movil */
+  /* ---- Tablas como TARJETAS en movil ---- */
+  .table-wrap {
+    overflow-x: visible; /* ya no hace falta scroll lateral */
+  }
+
+  .data-table,
+  .users-table {
+    min-width: 0; /* quita el ancho minimo que forzaba el scroll */
+  }
+
+  /* Oculta el encabezado de la tabla */
+  .data-table thead,
+  .users-table thead {
+    display: none;
+  }
+
+  .data-table,
+  .data-table tbody,
+  .data-table tr,
+  .data-table td,
+  .users-table,
+  .users-table tbody,
+  .users-table tr,
+  .users-table td {
+    display: block;
+    width: 100%;
+  }
+
+  /* Cada fila es una tarjeta */
+  .data-table tbody tr,
+  .users-table tbody tr {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0.9rem 1rem;
+    margin-bottom: 0.85rem;
+  }
+
+  .data-table tbody tr:hover,
+  .users-table tbody tr:hover {
+    background: var(--panel);
+  }
+
+  /* Cada celda: etiqueta a la izquierda, valor a la derecha */
+  .data-table td,
+  .users-table td {
+    border: none;
+    padding: 0.4rem 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    text-align: right;
+  }
+
+  .data-table td::before,
+  .users-table td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    font-weight: 600;
+    text-align: left;
+    flex-shrink: 0;
+  }
+
+  /* El detalle en movil se ve completo (sin recorte) */
   .cell-detail {
-    max-width: 160px;
+    max-width: none;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  /* Alinea contenidos complejos a la derecha */
+  .cell-author,
+  .recipient-tags {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  /* La celda de acciones: botones a lo ancho */
+  .cell-actions {
+    text-align: left !important;
+  }
+
+  .cell-actions::before {
+    content: ""; /* sin etiqueta para las acciones */
+  }
+
+  .row-actions {
+    width: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  /* La fila de detalle expandida ocupa todo el ancho */
+  .detail-row td {
+    display: block;
+    text-align: left;
+  }
+
+  .detail-row td::before {
+    content: "";
   }
 }
 
@@ -1191,4 +1346,38 @@ body {
   .modal {
     max-width: 100%;
   }
+}
+
+/* ============================================
+   SCROLLBARS ESTILIZADAS (tema oscuro)
+   ============================================ */
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+/* Chrome, Edge, Safari */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #3a4a63;
+  border-radius: 999px;
+  border: 2px solid var(--bg);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
 }

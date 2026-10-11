@@ -19,6 +19,7 @@ export async function GET() {
       name: session.name,
       position: session.position,
       role: session.role,
+      mustChangePassword: session.mustChangePassword ?? false,
     },
   });
 }

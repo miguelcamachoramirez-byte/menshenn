@@ -7,6 +7,7 @@ export type SessionPayload = {
   role: string;
   name?: string | null;
   position?: string | null;
+  mustChangePassword?: boolean;
 };
 
 const COOKIE_NAME = "session";
@@ -44,6 +45,7 @@ export async function verifySessionToken(
       role: String(payload.role),
       name: (payload.name as string | undefined) ?? null,
       position: (payload.position as string | undefined) ?? null,
+      mustChangePassword: Boolean(payload.mustChangePassword),
     };
   } catch {
     return null;

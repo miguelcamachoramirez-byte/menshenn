@@ -52,9 +52,17 @@ export default function AdminPage() {
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [toDelete, setToDelete] = useState<User | null>(null);
+  const [resettingId, setResettingId] = useState<string | null>(null);
+  const [toReset, setToReset] = useState<User | null>(null);
 
   // Guarda las credenciales recien creadas para mostrarlas una vez
   const [createdInfo, setCreatedInfo] = useState<{
+    email: string;
+    password: string;
+  } | null>(null);
+
+  // Contrasena temporal generada tras un restablecimiento (mostrar una vez)
+  const [resetInfo, setResetInfo] = useState<{
     email: string;
     password: string;
   } | null>(null);
@@ -133,6 +141,30 @@ export default function AdminPage() {
       setError(err.message || "No se pudo eliminar el usuario.");
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function confirmReset() {
+    const u = toReset;
+    if (!u) return;
+    setToReset(null);
+    setError(null);
+    setResetInfo(null);
+    try {
+      setResettingId(u.id);
+      const res = await fetch(`/api/admin/users/${u.id}/reset-password`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "No se pudo restablecer la contrasena.");
+      }
+      const data = await res.json();
+      setResetInfo({ email: u.email, password: data.tempPassword });
+    } catch (err: any) {
+      setError(err.message || "No se pudo restablecer la contrasena.");
+    } finally {
+      setResettingId(null);
     }
   }
 
@@ -245,6 +277,17 @@ export default function AdminPage() {
 
       <section>
         <h2 className="section-title">Usuarios registrados</h2>
+
+        {resetInfo && (
+          <div className="generated-password">
+            Contrasena temporal generada para <code>{resetInfo.email}</code>.
+            Entregala al usuario (no se volvera a mostrar). Debera cambiarla al
+            iniciar sesion.
+            <br />
+            Nueva contrasena temporal: <code>{resetInfo.password}</code>
+          </div>
+        )}
+
         {loading ? (
           <Loader text="Cargando usuarios..." />
         ) : users.length === 0 ? (
@@ -265,10 +308,10 @@ export default function AdminPage() {
               <tbody>
                 {users.map((u) => (
                   <tr key={u.id}>
-                    <td>{u.email}</td>
-                    <td>{u.name || "-"}</td>
-                    <td>{u.position || "-"}</td>
-                    <td>
+                    <td data-label="Email">{u.email}</td>
+                    <td data-label="Nombre">{u.name || "-"}</td>
+                    <td data-label="Cargo">{u.position || "-"}</td>
+                    <td data-label="Rol">
                       <span
                         className={`badge ${
                           u.role === "admin" ? "badge-admin" : "badge-user"
@@ -277,15 +320,27 @@ export default function AdminPage() {
                         {u.role}
                       </span>
                     </td>
-                    <td>{formatDate(u.createdAt)}</td>
-                    <td style={{ textAlign: "right" }}>
-                      <button
-                        className="btn btn-danger"
-                        onClick={() => setToDelete(u)}
-                        disabled={deletingId === u.id}
-                      >
-                        {deletingId === u.id ? "..." : "Eliminar"}
-                      </button>
+                    <td data-label="Creado">{formatDate(u.createdAt)}</td>
+                    <td className="cell-actions" style={{ textAlign: "right" }}>
+                      <div className="row-actions">
+                        <button
+                          className="btn btn-ghost"
+                          onClick={() => setToReset(u)}
+                          disabled={resettingId === u.id}
+                          title="Generar una nueva contrasena temporal"
+                        >
+                          {resettingId === u.id
+                            ? "..."
+                            : "Restablecer contrasena"}
+                        </button>
+                        <button
+                          className="btn btn-danger"
+                          onClick={() => setToDelete(u)}
+                          disabled={deletingId === u.id}
+                        >
+                          {deletingId === u.id ? "..." : "Eliminar"}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -305,8 +360,23 @@ export default function AdminPage() {
         }
         confirmText="Eliminar"
         danger
+        loading={deletingId !== null}
         onConfirm={confirmDelete}
         onCancel={() => setToDelete(null)}
+      />
+
+      <ConfirmDialog
+        open={toReset !== null}
+        title="Restablecer contrasena"
+        message={
+          toReset
+            ? `Se generara una nueva contrasena temporal para ${toReset.email}. La contrasena actual dejara de funcionar y el usuario debera cambiarla al iniciar sesion.`
+            : ""
+        }
+        confirmText="Restablecer"
+        loading={resettingId !== null}
+        onConfirm={confirmReset}
+        onCancel={() => setToReset(null)}
       />
     </main>
   );

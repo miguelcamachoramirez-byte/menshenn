@@ -2,8 +2,9 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Gestor de Reportes",
-  description: "Aplicacion para crear y gestionar reportes",
+  title: "Reporte de actos y condiciones inseguras",
+  description:
+    "Portal para reportar actos y condiciones inseguras en el trabajo",
 };
 
 export const viewport: Viewport = {

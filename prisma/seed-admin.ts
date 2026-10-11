@@ -20,8 +20,15 @@ async function main() {
   // Idempotente: crea el admin si no existe, o actualiza su contrasena/rol si ya existe
   const user = await prisma.user.upsert({
     where: { email },
-    update: { passwordHash, role: "admin", name, position },
-    create: { email, passwordHash, role: "admin", name, position },
+    update: { passwordHash, role: "admin", name, position, mustChangePassword: false },
+    create: {
+      email,
+      passwordHash,
+      role: "admin",
+      name,
+      position,
+      mustChangePassword: false,
+    },
   });
 
   console.log(`Admin listo: ${user.email} (rol: ${user.role})`);

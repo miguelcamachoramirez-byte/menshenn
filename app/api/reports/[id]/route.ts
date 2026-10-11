@@ -45,6 +45,32 @@ export async function PUT(
       );
     }
 
+    // Solo el autor del reporte (o un admin) puede editarlo
+    const existing = await prisma.report.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        authorId: true,
+        recipient: true,
+        reportDate: true,
+        content: true,
+      },
+    });
+    if (!existing) {
+      return NextResponse.json(
+        { error: "El reporte no existe." },
+        { status: 404 }
+      );
+    }
+    // Solo el autor del reporte puede editarlo (ni siquiera el admin)
+    const isOwner = existing.authorId === session.userId;
+    if (!isOwner) {
+      return NextResponse.json(
+        { error: "Solo puedes editar los reportes que tu creaste." },
+        { status: 403 }
+      );
+    }
+
     const found = await prisma.recipient.findMany({
       where: { id: { in: ids } },
       select: { id: true, name: true },
@@ -58,21 +84,54 @@ export async function PUT(
 
     const summary = found.map((r) => r.name).join(", ");
     const editedBy = session.name || session.email;
+    const now = new Date();
+    const newContent = content ? String(content).trim() : null;
 
-    const report = await prisma.report.update({
-      where: { id },
-      data: {
-        recipient: summary,
-        reportDate: parsedDate,
-        content: content ? String(content).trim() : null,
-        editedAt: new Date(),
-        editedBy,
-        // Reemplaza los destinatarios por los nuevos
-        recipients: { set: ids.map((rid) => ({ id: rid })) },
-      },
-      include: {
-        recipients: { select: { id: true, name: true, area: true } },
-      },
+    // Transaccion: actualiza el reporte, guarda la traza, y luego lee el
+    // reporte final (ya con el nuevo registro de edicion incluido).
+    const report = await prisma.$transaction(async (tx) => {
+      await tx.report.update({
+        where: { id },
+        data: {
+          recipient: summary,
+          reportDate: parsedDate,
+          content: newContent,
+          editedAt: now,
+          editedBy,
+          recipients: { set: ids.map((rid) => ({ id: rid })) },
+        },
+      });
+
+      // Guarda en la traza el estado PREVIO del reporte (como estaba
+      // antes de esta edicion), para poder ver que decia antes.
+      await tx.reportEdit.create({
+        data: {
+          reportId: id,
+          editedBy,
+          editedAt: now,
+          recipient: existing.recipient,
+          reportDate: existing.reportDate,
+          content: existing.content,
+        },
+      });
+
+      return tx.report.findUnique({
+        where: { id },
+        include: {
+          recipients: { select: { id: true, name: true, area: true } },
+          edits: {
+            orderBy: { editedAt: "desc" },
+            select: {
+              id: true,
+              editedBy: true,
+              editedAt: true,
+              recipient: true,
+              reportDate: true,
+              content: true,
+            },
+          },
+        },
+      });
     });
 
     return NextResponse.json(report);
@@ -91,12 +150,23 @@ export async function PUT(
   }
 }
 
-// DELETE /api/reports/:id -> elimina un reporte
+// DELETE /api/reports/:id -> elimina un reporte (solo admin)
 export async function DELETE(
   _request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+    }
+    if (session.role !== "admin") {
+      return NextResponse.json(
+        { error: "Solo un administrador puede eliminar reportes." },
+        { status: 403 }
+      );
+    }
+
     const { id } = params;
 
     if (!id) {
