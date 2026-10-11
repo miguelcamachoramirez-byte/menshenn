@@ -6,6 +6,7 @@ import Link from "next/link";
 import Loader from "./components/Loader";
 import MultiSelect from "./components/MultiSelect";
 import ConfirmDialog from "./components/ConfirmDialog";
+import ImageUpload from "./components/ImageUpload";
 
 type RecipientRef = {
   id: string;
@@ -20,6 +21,7 @@ type ReportEdit = {
   recipient: string;
   reportDate: string;
   content: string | null;
+  imageUrl: string | null;
 };
 
 type Report = {
@@ -29,6 +31,7 @@ type Report = {
   recipient: string;
   reportDate: string;
   content: string | null;
+  imageUrl: string | null;
   createdAt: string;
   editedAt: string | null;
   editedBy: string | null;
@@ -93,11 +96,15 @@ export default function HomePage() {
 
   // Formulario (crear o editar)
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingOriginal, setEditingOriginal] = useState<Report | null>(null);
   const [selectedRecipientIds, setSelectedRecipientIds] = useState<string[]>(
     []
   );
   const [reportDate, setReportDate] = useState("");
   const [content, setContent] = useState("");
+  // Imagen: archivo nuevo seleccionado (sin subir) + url existente al editar
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
 
   // Destinatarios disponibles
   const [recipients, setRecipients] = useState<Recipient[]>([]);
@@ -167,13 +174,17 @@ export default function HomePage() {
 
   function resetForm() {
     setEditingId(null);
+    setEditingOriginal(null);
     setSelectedRecipientIds([]);
     setReportDate("");
     setContent("");
+    setImageFile(null);
+    setExistingImageUrl(null);
   }
 
   function startEdit(report: Report) {
     setEditingId(report.id);
+    setEditingOriginal(report);
 
     let ids = report.recipients.map((r) => r.id);
 
@@ -192,9 +203,31 @@ export default function HomePage() {
     setSelectedRecipientIds(ids);
     setReportDate(toDateInput(report.reportDate));
     setContent(report.content ?? "");
+    setImageFile(null);
+    setExistingImageUrl(report.imageUrl ?? null);
     setError(null);
     // Lleva al usuario al formulario
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  // En modo edicion, indica si hubo algun cambio respecto al original
+  function hasChanges(): boolean {
+    if (!editingOriginal) return true; // en modo crear, siempre "hay cambios"
+
+    const origIds = [...editingOriginal.recipients.map((r) => r.id)].sort();
+    const curIds = [...selectedRecipientIds].sort();
+    const recipientsChanged =
+      origIds.length !== curIds.length ||
+      origIds.some((id, i) => id !== curIds[i]);
+
+    const dateChanged = toDateInput(editingOriginal.reportDate) !== reportDate;
+    const contentChanged = (editingOriginal.content ?? "") !== content;
+    // Cambio de imagen: hay archivo nuevo, o se quito la imagen existente
+    const imageChanged =
+      imageFile !== null ||
+      (editingOriginal.imageUrl ?? null) !== existingImageUrl;
+
+    return recipientsChanged || dateChanged || contentChanged || imageChanged;
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -210,14 +243,31 @@ export default function HomePage() {
       return;
     }
 
-    const payload = {
-      recipientIds: selectedRecipientIds,
-      reportDate,
-      content,
-    };
-
     try {
       setSubmitting(true);
+
+      // Si hay una imagen nueva seleccionada, se sube AHORA (al enviar el form).
+      // Si no, se conserva la imagen existente (al editar) o queda sin imagen.
+      let finalImageUrl: string | null = existingImageUrl;
+      if (imageFile) {
+        const form = new FormData();
+        form.append("file", imageFile);
+        const up = await fetch("/api/upload", { method: "POST", body: form });
+        if (!up.ok) {
+          const data = await up.json().catch(() => ({}));
+          throw new Error(data.error || "No se pudo subir la imagen.");
+        }
+        const upData = await up.json();
+        finalImageUrl = upData.url;
+      }
+
+      const payload = {
+        recipientIds: selectedRecipientIds,
+        reportDate,
+        content,
+        imageUrl: finalImageUrl,
+      };
+
       const url = editingId ? `/api/reports/${editingId}` : "/api/reports";
       const method = editingId ? "PUT" : "POST";
       const res = await fetch(url, {
@@ -421,6 +471,18 @@ export default function HomePage() {
                 placeholder="Descripcion del reporte..."
               />
             </div>
+            <div className="field full">
+              <label>Imagen (opcional)</label>
+              <ImageUpload
+                existingUrl={existingImageUrl}
+                file={imageFile}
+                onSelect={(f) => {
+                  setImageFile(f);
+                  // Si quita la imagen, tambien limpia la existente
+                  if (f === null) setExistingImageUrl(null);
+                }}
+              />
+            </div>
           </div>
           <div className="form-actions">
             {editingId && (
@@ -440,7 +502,8 @@ export default function HomePage() {
                 submitting ||
                 selectedRecipientIds.length === 0 ||
                 !reportDate ||
-                content.trim() === ""
+                content.trim() === "" ||
+                !hasChanges()
               }
             >
               {submitting
@@ -535,7 +598,8 @@ export default function HomePage() {
                           const isOpen = expandedId === report.id;
                           const hasDetail = Boolean(report.content);
                           const hasHistory = report.edits.length > 0;
-                          const expandable = hasDetail || hasHistory;
+                          const hasImage = Boolean(report.imageUrl);
+                          const expandable = hasDetail || hasHistory || hasImage;
                           const isAdmin = user?.role === "admin";
                           // Solo el autor puede editar (ni siquiera el admin)
                           const canEdit =
@@ -637,6 +701,23 @@ export default function HomePage() {
                                         </>
                                       )}
 
+                                      {report.imageUrl && (
+                                        <div className="report-image">
+                                          <span className="label">Imagen</span>
+                                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                                          <a
+                                            href={report.imageUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                          >
+                                            <img
+                                              src={report.imageUrl}
+                                              alt="Imagen del reporte"
+                                            />
+                                          </a>
+                                        </div>
+                                      )}
+
                                       {hasHistory && (
                                         <div className="trace">
                                           <span className="label">
@@ -663,6 +744,21 @@ export default function HomePage() {
                                                   {ed.content
                                                     ? ` · ${ed.content}`
                                                     : ""}
+                                                  {ed.imageUrl && (
+                                                    <div className="trace-image">
+                                                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                      <a
+                                                        href={ed.imageUrl}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                      >
+                                                        <img
+                                                          src={ed.imageUrl}
+                                                          alt="Imagen anterior"
+                                                        />
+                                                      </a>
+                                                    </div>
+                                                  )}
                                                 </div>
                                               </li>
                                             ))}

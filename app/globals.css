@@ -1008,6 +1008,18 @@ body {
   margin-top: 0.2rem;
 }
 
+.trace-image {
+  margin-top: 0.4rem;
+}
+
+.trace-image img {
+  max-width: 140px;
+  max-height: 100px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  cursor: zoom-in;
+}
+
 /* Modal de confirmacion */
 .modal-overlay {
   position: fixed;
@@ -1380,4 +1392,83 @@ body {
 
 *::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+/* Subida de imagen (dropzone + preview) */
+.image-upload {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  text-align: center;
+  padding: 1.5rem 1rem;
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.dropzone:hover,
+.dropzone.dragover {
+  border-color: var(--accent);
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.dropzone-icon {
+  font-size: 1.6rem;
+}
+
+.dropzone-hint {
+  font-size: 0.78rem;
+  opacity: 0.8;
+}
+
+.image-preview {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+.image-preview img {
+  max-width: 100%;
+  max-height: 220px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  display: block;
+}
+
+.image-remove {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.8rem;
+}
+
+.image-error {
+  color: #fca5a5;
+  font-size: 0.82rem;
+}
+
+/* Imagen en el detalle del reporte */
+.report-image {
+  margin-top: 0.8rem;
+}
+
+.report-image img {
+  max-width: 320px;
+  max-height: 240px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  cursor: zoom-in;
 }

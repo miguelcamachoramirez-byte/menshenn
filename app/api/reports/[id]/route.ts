@@ -24,7 +24,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { recipientIds, reportDate, content } = body ?? {};
+    const { recipientIds, reportDate, content, imageUrl } = body ?? {};
 
     const ids: string[] = Array.isArray(recipientIds)
       ? recipientIds.map((x: unknown) => String(x))
@@ -54,6 +54,7 @@ export async function PUT(
         recipient: true,
         reportDate: true,
         content: true,
+        imageUrl: true,
       },
     });
     if (!existing) {
@@ -96,6 +97,7 @@ export async function PUT(
           recipient: summary,
           reportDate: parsedDate,
           content: newContent,
+          imageUrl: imageUrl ? String(imageUrl) : null,
           editedAt: now,
           editedBy,
           recipients: { set: ids.map((rid) => ({ id: rid })) },
@@ -112,6 +114,7 @@ export async function PUT(
           recipient: existing.recipient,
           reportDate: existing.reportDate,
           content: existing.content,
+          imageUrl: existing.imageUrl,
         },
       });
 
@@ -128,6 +131,7 @@ export async function PUT(
               recipient: true,
               reportDate: true,
               content: true,
+              imageUrl: true,
             },
           },
         },

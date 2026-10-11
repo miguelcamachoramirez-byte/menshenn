@@ -41,6 +41,7 @@ model Report {
   recipient String   // Resumen de destinatarios (texto legible, para mostrar/exportar)
   reportDate DateTime // Fecha del reporte
   content   String?  // Contenido / detalle (opcional)
+  imageUrl  String?  // URL de la imagen adjunta (Supabase Storage), opcional
   createdAt DateTime @default(now())
   editedAt  DateTime? // Fecha de la ultima edicion (null si nunca se edito)
   editedBy  String?   // Quien hizo la ultima edicion
@@ -56,10 +57,11 @@ model ReportEdit {
   reportId    String
   editedBy    String   // Nombre de quien edito
   editedAt    DateTime @default(now())
-  // Resumen de como quedo el reporte tras la edicion (traza)
+  // Estado del reporte ANTES de esta edicion (version anterior)
   recipient   String
   reportDate  DateTime
   content     String?
+  imageUrl    String?  // Imagen que tenia antes de la edicion
 
   report      Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
 

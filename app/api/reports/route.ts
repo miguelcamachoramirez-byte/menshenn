@@ -23,6 +23,7 @@ export async function GET() {
             recipient: true,
             reportDate: true,
             content: true,
+            imageUrl: true,
           },
         },
       },
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { recipientIds, reportDate, content } = body ?? {};
+    const { recipientIds, reportDate, content, imageUrl } = body ?? {};
 
     const ids: string[] = Array.isArray(recipientIds)
       ? recipientIds.map((x: unknown) => String(x))
@@ -93,6 +94,7 @@ export async function POST(request: Request) {
         recipient: summary,
         reportDate: parsedDate,
         content: content ? String(content).trim() : null,
+        imageUrl: imageUrl ? String(imageUrl) : null,
         recipients: { connect: ids.map((id) => ({ id })) },
       },
       include: {
