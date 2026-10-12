@@ -77,6 +77,24 @@ function formatDateTime(value: string) {
   });
 }
 
+// Calcula los numeros de pagina a mostrar, con "..." cuando hay muchas.
+// Ej: [1, "...", 4, 5, 6, "...", 20]
+function getPageItems(current: number, total: number): (number | "...")[] {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  const items: (number | "...")[] = [1];
+  const left = Math.max(2, current - 1);
+  const right = Math.min(total - 1, current + 1);
+
+  if (left > 2) items.push("...");
+  for (let i = left; i <= right; i++) items.push(i);
+  if (right < total - 1) items.push("...");
+
+  items.push(total);
+  return items;
+}
+
 // Para el input type=date (YYYY-MM-DD)
 function toDateInput(value: string) {
   const d = new Date(value);
@@ -327,7 +345,14 @@ export default function HomePage() {
   }
 
   function exportToCsv(rows: Report[]) {
-    const header = ["Autor", "Tipo de reporte", "Fecha", "Detalle", "Editado"];
+    const header = [
+      "Autor",
+      "Tipo de reporte",
+      "Fecha",
+      "Detalle",
+      "Imagen",
+      "Ultima edicion",
+    ];
     const lines = rows.map((r) =>
       [
         csvCell(r.author),
@@ -338,11 +363,8 @@ export default function HomePage() {
         ),
         csvCell(formatDate(r.reportDate)),
         csvCell(r.content ?? ""),
-        csvCell(
-          r.editedAt
-            ? `Editado el ${formatDate(r.editedAt)} por ${r.editedBy ?? ""}`
-            : ""
-        ),
+        csvCell(r.imageUrl ?? ""),
+        csvCell(r.editedAt ? formatDateTime(r.editedAt) : ""),
       ].join(";")
     );
     const csv = "\uFEFF" + [header.join(";"), ...lines].join("\r\n");
@@ -520,14 +542,19 @@ export default function HomePage() {
         {(() => {
           const term = search.trim().toLowerCase();
           const filtered = term
-            ? reports.filter(
-                (r) =>
-                  r.author.toLowerCase().includes(term) ||
-                  r.recipient.toLowerCase().includes(term) ||
-                  r.recipients.some((x) =>
-                    x.name.toLowerCase().includes(term)
-                  )
-              )
+            ? reports.filter((r) => {
+                // Busca en todo el contenido visible de la fila
+                const haystack = [
+                  r.author,
+                  r.recipient,
+                  r.recipients.map((x) => x.name).join(" "),
+                  r.content ?? "",
+                  formatDate(r.reportDate),
+                ]
+                  .join(" ")
+                  .toLowerCase();
+                return haystack.includes(term);
+              })
             : reports;
 
           const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -554,7 +581,7 @@ export default function HomePage() {
                         setSearch(e.target.value);
                         setPage(1);
                       }}
-                      placeholder="Buscar por autor o tipo de reporte..."
+                      placeholder="Buscar en los reportes..."
                     />
                   )}
                   <button
@@ -721,47 +748,117 @@ export default function HomePage() {
                                       {hasHistory && (
                                         <div className="trace">
                                           <span className="label">
-                                            Traza de ediciones (versiones
-                                            anteriores)
+                                            Traza de ediciones (que cambio en
+                                            cada edicion)
                                           </span>
                                           <ul className="trace-list">
-                                            {report.edits.map((ed) => (
-                                              <li
-                                                key={ed.id}
-                                                className="trace-item"
-                                              >
-                                                <div className="trace-head">
-                                                  <strong>
-                                                    {formatDateTime(
-                                                      ed.editedAt
+                                            {report.edits.map((ed, i) => {
+                                              // "after" = estado que reemplazo a esta version.
+                                              // La version mas nueva (i===0) fue reemplazada
+                                              // por el estado ACTUAL del reporte.
+                                              const after =
+                                                i === 0
+                                                  ? {
+                                                      recipient:
+                                                        report.recipient,
+                                                      reportDate:
+                                                        report.reportDate,
+                                                      content: report.content,
+                                                      imageUrl:
+                                                        report.imageUrl,
+                                                    }
+                                                  : report.edits[i - 1];
+
+                                              const tipoChanged =
+                                                ed.recipient !==
+                                                after.recipient;
+                                              const fechaChanged =
+                                                toDateInput(ed.reportDate) !==
+                                                toDateInput(after.reportDate);
+                                              const detalleChanged =
+                                                (ed.content ?? "") !==
+                                                (after.content ?? "");
+                                              const imagenChanged =
+                                                (ed.imageUrl ?? null) !==
+                                                (after.imageUrl ?? null);
+
+                                              return (
+                                                <li
+                                                  key={ed.id}
+                                                  className="trace-item"
+                                                >
+                                                  <div className="trace-head">
+                                                    <strong>
+                                                      {formatDateTime(
+                                                        ed.editedAt
+                                                      )}
+                                                    </strong>
+                                                  </div>
+                                                  <div className="trace-body">
+                                                    {tipoChanged && (
+                                                      <div>
+                                                        <span className="trace-field">
+                                                          Tipo anterior:
+                                                        </span>{" "}
+                                                        {ed.recipient}
+                                                      </div>
                                                     )}
-                                                  </strong>
-                                                </div>
-                                                <div className="trace-body">
-                                                  Tipo: {ed.recipient} ·
-                                                  Fecha:{" "}
-                                                  {formatDate(ed.reportDate)}
-                                                  {ed.content
-                                                    ? ` · ${ed.content}`
-                                                    : ""}
-                                                  {ed.imageUrl && (
-                                                    <div className="trace-image">
-                                                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                      <a
-                                                        href={ed.imageUrl}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                      >
-                                                        <img
-                                                          src={ed.imageUrl}
-                                                          alt="Imagen anterior"
-                                                        />
-                                                      </a>
-                                                    </div>
-                                                  )}
-                                                </div>
-                                              </li>
-                                            ))}
+                                                    {fechaChanged && (
+                                                      <div>
+                                                        <span className="trace-field">
+                                                          Fecha anterior:
+                                                        </span>{" "}
+                                                        {formatDate(
+                                                          ed.reportDate
+                                                        )}
+                                                      </div>
+                                                    )}
+                                                    {detalleChanged && (
+                                                      <div>
+                                                        <span className="trace-field">
+                                                          Detalle anterior:
+                                                        </span>{" "}
+                                                        {ed.content || "(vacio)"}
+                                                      </div>
+                                                    )}
+                                                    {imagenChanged && (
+                                                      <div>
+                                                        <span className="trace-field">
+                                                          Imagen anterior:
+                                                        </span>
+                                                        {ed.imageUrl ? (
+                                                          <div className="trace-image">
+                                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                            <a
+                                                              href={ed.imageUrl}
+                                                              target="_blank"
+                                                              rel="noopener noreferrer"
+                                                            >
+                                                              <img
+                                                                src={
+                                                                  ed.imageUrl
+                                                                }
+                                                                alt="Imagen anterior"
+                                                              />
+                                                            </a>
+                                                          </div>
+                                                        ) : (
+                                                          " (sin imagen)"
+                                                        )}
+                                                      </div>
+                                                    )}
+                                                    {!tipoChanged &&
+                                                      !fechaChanged &&
+                                                      !detalleChanged &&
+                                                      !imagenChanged && (
+                                                        <span className="trace-nochange">
+                                                          Sin cambios visibles
+                                                        </span>
+                                                      )}
+                                                  </div>
+                                                </li>
+                                              );
+                                            })}
                                           </ul>
                                         </div>
                                       )}
@@ -797,24 +894,43 @@ export default function HomePage() {
 
                     <div className="page-nav">
                       <button
-                        className="btn btn-ghost"
+                        className="btn btn-ghost page-btn"
                         onClick={() => setPage((p) => Math.max(1, p - 1))}
                         disabled={currentPage === 1}
+                        aria-label="Pagina anterior"
                       >
-                        Anterior
+                        ‹
                       </button>
-                      <span className="page-info">
-                        {start + 1}-{Math.min(start + pageSize, filtered.length)}{" "}
-                        de {filtered.length}
-                      </span>
+
+                      {getPageItems(currentPage, totalPages).map((it, i) =>
+                        it === "..." ? (
+                          <span key={`dots-${i}`} className="page-dots">
+                            ...
+                          </span>
+                        ) : (
+                          <button
+                            key={it}
+                            className={`btn page-btn ${
+                              it === currentPage
+                                ? "btn-primary"
+                                : "btn-ghost"
+                            }`}
+                            onClick={() => setPage(it)}
+                          >
+                            {it}
+                          </button>
+                        )
+                      )}
+
                       <button
-                        className="btn btn-ghost"
+                        className="btn btn-ghost page-btn"
                         onClick={() =>
                           setPage((p) => Math.min(totalPages, p + 1))
                         }
                         disabled={currentPage === totalPages}
+                        aria-label="Pagina siguiente"
                       >
-                        Siguiente
+                        ›
                       </button>
                     </div>
                   </div>
