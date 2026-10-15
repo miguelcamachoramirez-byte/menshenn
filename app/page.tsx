@@ -656,12 +656,17 @@ export default function HomePage() {
                                       {report.author.charAt(0).toUpperCase()}
                                     </span>
                                     <div>
-                                      {report.author}
-                                      {report.editedAt && (
-                                        <span className="edited-tag">
-                                          editado
-                                        </span>
-                                      )}
+                                      <div className="author-name">
+                                        {report.author}
+                                        {report.editedAt && (
+                                          <span className="edited-tag">
+                                            editado
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="author-date">
+                                        {formatDateTime(report.createdAt)}
+                                      </div>
                                     </div>
                                   </div>
                                 </td>

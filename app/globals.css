@@ -694,11 +694,42 @@ body {
   white-space: nowrap;
 }
 
+/* Fechas de creacion/edicion en el detalle expandido */
+.detail-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.5rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 1rem;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.label-inline {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.date-edited {
+  color: #fbbf24;
+}
+
 .cell-author {
   display: flex;
   align-items: center;
   gap: 0.55rem;
   font-weight: 500;
+}
+
+.author-name {
+  font-weight: 500;
+}
+
+.author-date {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-top: 0.1rem;
 }
 
 .mini-avatar {
