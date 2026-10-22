@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin, AuthError } from "@/lib/session";
+import { requireAdmin, getSession, AuthError } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +40,40 @@ export async function GET(
     const url = new URL(request.url);
     const providedKey = url.searchParams.get("key");
     const cohortId = url.searchParams.get("c");
+    const preview = url.searchParams.get("preview") === "1";
+
+    // Vista previa de admin: entrega todo el contenido sin exigir convocatoria
+    // ni clave. Solo para usuarios autenticados como admin.
+    if (preview) {
+      const session = await getSession();
+      if (!session || session.role !== "admin") {
+        return NextResponse.json(
+          { error: "Vista previa solo para administradores." },
+          { status: 403 }
+        );
+      }
+      return NextResponse.json({
+        id: training.id,
+        title: training.title,
+        description: training.description,
+        content: training.content,
+        embedUrl: training.embedUrl,
+        fileUrl: training.fileUrl,
+        minMinutes: training.minMinutes,
+        requireAttendance: training.requireAttendance,
+        requiresKey: false,
+        active: true,
+        cohortId: null,
+        cohortName: null,
+        preview: true,
+        locked: false,
+        questions: training.questions.map((q) => ({
+          id: q.id,
+          question: q.question,
+          options: JSON.parse(q.options) as string[],
+        })),
+      });
+    }
 
     // Resuelve la convocatoria. Si no viene una en la URL (?c=), intenta usar
     // la unica convocatoria activa (comodidad cuando solo hay una).

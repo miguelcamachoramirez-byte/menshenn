@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useParams } from "next/navigation";
 import Loader from "../../components/Loader";
+import EmbedFrame from "../../components/EmbedFrame";
 
 type Question = {
   id: string;
@@ -23,6 +24,7 @@ type Training = {
   active: boolean;
   locked?: boolean;
   noCohort?: boolean;
+  preview?: boolean;
   cohortId?: string | null;
   cohortName?: string | null;
   questions: Question[];
@@ -96,10 +98,13 @@ export default function CapacitacionWizard() {
   // Convocatoria indicada en la URL (?c=...). La leemos del navegador para no
   // requerir un Suspense boundary con useSearchParams.
   const [cohortId, setCohortId] = useState<string>("");
+  const [preview, setPreview] = useState(false);
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const c = new URLSearchParams(window.location.search).get("c");
+      const sp = new URLSearchParams(window.location.search);
+      const c = sp.get("c");
       if (c) setCohortId(c);
+      if (sp.get("preview") === "1") setPreview(true);
     }
   }, []);
 
@@ -135,6 +140,7 @@ export default function CapacitacionWizard() {
 
   async function loadTraining(key?: string) {
     const qp = new URLSearchParams();
+    if (preview) qp.set("preview", "1");
     if (cohortId) qp.set("c", cohortId);
     if (key) qp.set("key", key);
     const qs = qp.toString() ? `?${qp.toString()}` : "";
@@ -165,7 +171,7 @@ export default function CapacitacionWizard() {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, cohortId]);
+  }, [id, cohortId, preview]);
 
   async function submitKey(e: FormEvent) {
     e.preventDefault();
@@ -288,6 +294,57 @@ export default function CapacitacionWizard() {
     );
   }
 
+  // Vista previa de admin: muestra el contenido tal cual, sin registro ni quiz
+  if (training.preview) {
+    return (
+      <main className="container">
+        <div className="preview-banner">
+          Vista previa (solo admin). Asi veran el contenido los asistentes. El
+          registro de asistencia y el cuestionario no se muestran aqui.
+        </div>
+        <header className="header">
+          <h1>{training.title}</h1>
+          {training.description && <p>{training.description}</p>}
+        </header>
+        {training.content && (
+          <section className="card">
+            <div className="training-content">{training.content}</div>
+          </section>
+        )}
+        {training.fileUrl && (
+          <section className="card" style={{ padding: "0.75rem" }}>
+            <div className="training-embed">
+              <EmbedFrame
+                src={`${training.fileUrl}#toolbar=1&view=FitH`}
+                title="Presentacion de la capacitacion"
+              />
+            </div>
+          </section>
+        )}
+        {training.embedUrl && (
+          <section className="card" style={{ padding: "0.75rem" }}>
+            <div className="training-embed">
+              <EmbedFrame
+                src={toEmbedUrl(training.embedUrl)}
+                title="Contenido de la capacitacion"
+                allowFullScreen
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              />
+            </div>
+          </section>
+        )}
+        {(training.questions?.length ?? 0) > 0 && (
+          <section className="card">
+            <h2>Cuestionario ({training.questions.length} pregunta(s))</h2>
+            <p className="subtitle">
+              Los asistentes deben responder correctamente para registrarse.
+            </p>
+          </section>
+        )}
+      </main>
+    );
+  }
+
   // Requiere clave y aun no se ha validado
   if (training.locked) {
     return (
@@ -368,7 +425,7 @@ export default function CapacitacionWizard() {
         {training.fileUrl && (
           <section className="card" style={{ padding: "0.75rem" }}>
             <div className="training-embed">
-              <iframe
+              <EmbedFrame
                 src={`${training.fileUrl}#toolbar=1&view=FitH`}
                 title="Presentacion de la capacitacion"
               />
@@ -378,7 +435,7 @@ export default function CapacitacionWizard() {
         {training.embedUrl && (
           <section className="card" style={{ padding: "0.75rem" }}>
             <div className="training-embed">
-              <iframe
+              <EmbedFrame
                 src={toEmbedUrl(training.embedUrl)}
                 title="Contenido de la capacitacion"
                 allowFullScreen
@@ -434,7 +491,7 @@ export default function CapacitacionWizard() {
           {training.fileUrl && (
             <section className="card" style={{ padding: "0.75rem" }}>
               <div className="training-embed">
-                <iframe
+                <EmbedFrame
                   src={`${training.fileUrl}#toolbar=1&view=FitH`}
                   title="Presentacion de la capacitacion"
                 />
@@ -444,7 +501,7 @@ export default function CapacitacionWizard() {
           {training.embedUrl && (
             <section className="card" style={{ padding: "0.75rem" }}>
               <div className="training-embed">
-                <iframe
+                <EmbedFrame
                   src={toEmbedUrl(training.embedUrl)}
                   title="Contenido de la capacitacion"
                   allowFullScreen

@@ -1929,6 +1929,42 @@ body {
   color: #a5b4fc;
 }
 
+/* Iframe con placeholder de carga */
+.embed-frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.embed-frame iframe {
+  transition: opacity 0.25s ease;
+}
+
+.embed-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: var(--muted, #9aa4b2);
+  font-size: 0.85rem;
+  background: var(--panel-2, rgba(255, 255, 255, 0.03));
+  border-radius: 8px;
+}
+
+/* Banner de vista previa de admin */
+.preview-banner {
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  color: #fbbf24;
+  border-radius: 0.6rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+  margin-bottom: 1.25rem;
+}
+
 /* Convocatorias (cohorts) */
 .cohort-create {
   display: flex;

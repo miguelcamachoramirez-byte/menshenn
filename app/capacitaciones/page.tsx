@@ -945,6 +945,14 @@ export default function CapacitacionesPage() {
                         )}
                       </div>
                       <div className="cohort-actions">
+                        <a
+                          href={`/capacitacion/${cohortsOf.id}?c=${c.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-ghost"
+                        >
+                          Ver
+                        </a>
                         <button
                           className="btn btn-ghost"
                           onClick={() => copyCohortLink(cohortsOf, c)}
