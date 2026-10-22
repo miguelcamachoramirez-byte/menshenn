@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useParams } from "next/navigation";
 import Loader from "../../components/Loader";
-import EmbedFrame from "../../components/EmbedFrame";
+import EmbedFrame from "@modules/shared/components/EmbedFrame";
 
 type Question = {
   id: string;
