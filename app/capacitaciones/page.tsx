@@ -14,10 +14,18 @@ type Training = {
   fileUrl: string | null;
   active: boolean;
   requireAttendance: boolean;
-  hasAccessKey: boolean;
-  groupLabel: string | null;
   createdAt: string;
   _count: { attendances: number };
+};
+
+type Cohort = {
+  id: string;
+  name: string;
+  active: boolean;
+  hasAccessKey: boolean;
+  accessKey: string | null;
+  attendances: number;
+  createdAt: string;
 };
 
 type Attendance = {
@@ -26,7 +34,6 @@ type Attendance = {
   idNumber: string;
   company: string | null;
   position: string | null;
-  groupLabel: string | null;
   createdAt: string;
 };
 
@@ -57,33 +64,21 @@ export default function CapacitacionesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // --- Formulario de capacitacion (crear/editar) ---
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [content, setContent] = useState("");
   const [embedUrl, setEmbedUrl] = useState("");
   const [fileUrl, setFileUrl] = useState("");
   const [uploading, setUploading] = useState(false);
-  // Modo del contenido incrustado: pegar enlace o subir PDF
   const [mediaMode, setMediaMode] = useState<"pdf" | "link">("link");
   const [minMinutes, setMinMinutes] = useState(0);
   const [requireAttendance, setRequireAttendance] = useState(true);
-  const [useKey, setUseKey] = useState(false);
-  const [accessKey, setAccessKey] = useState("");
-  const [groupLabel, setGroupLabel] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [togglingId, setTogglingId] = useState<string | null>(null);
 
-  // Dialogo para iniciar un grupo/convocatoria nuevo (rota la clave)
-  const [rotating, setRotating] = useState<Training | null>(null);
-  const [newGroup, setNewGroup] = useState("");
-  const [newGroupKey, setNewGroupKey] = useState("");
-  const [rotatingBusy, setRotatingBusy] = useState(false);
-
-  // Modo edicion: si tiene id, el form edita en vez de crear
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loadingEdit, setLoadingEdit] = useState<string | null>(null);
 
-  // Preguntas del cuestionario (opcional)
   type QDraft = { question: string; options: string[]; correct: number };
   const [questions, setQuestions] = useState<QDraft[]>([]);
 
@@ -131,12 +126,21 @@ export default function CapacitacionesPage() {
   const [toDelete, setToDelete] = useState<Training | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // Asistencias que se estan viendo
-  const [viewing, setViewing] = useState<Training | null>(null);
+  // --- Convocatorias ---
+  const [cohortsOf, setCohortsOf] = useState<Training | null>(null);
+  const [cohorts, setCohorts] = useState<Cohort[]>([]);
+  const [loadingCohorts, setLoadingCohorts] = useState(false);
+  const [newCohortName, setNewCohortName] = useState("");
+  const [newCohortKey, setNewCohortKey] = useState("");
+  const [creatingCohort, setCreatingCohort] = useState(false);
+  const [cohortBusyId, setCohortBusyId] = useState<string | null>(null);
+  const [copiedCohortId, setCopiedCohortId] = useState<string | null>(null);
+  const [cohortToDelete, setCohortToDelete] = useState<Cohort | null>(null);
+
+  // --- Asistencias de una convocatoria ---
+  const [viewingCohort, setViewingCohort] = useState<Cohort | null>(null);
   const [attendances, setAttendances] = useState<Attendance[]>([]);
   const [loadingAtt, setLoadingAtt] = useState(false);
-
-  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   async function load() {
     try {
@@ -166,16 +170,12 @@ export default function CapacitacionesPage() {
     setMediaMode("link");
     setMinMinutes(0);
     setRequireAttendance(true);
-    setUseKey(false);
-    setAccessKey("");
-    setGroupLabel("");
     setQuestions([]);
   }
 
-  // Sube un PDF a Supabase y guarda su URL en fileUrl
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    e.target.value = ""; // permite volver a elegir el mismo archivo
+    e.target.value = "";
     if (!file) return;
     if (file.type !== "application/pdf") {
       setError("El archivo debe ser un PDF.");
@@ -197,7 +197,6 @@ export default function CapacitacionesPage() {
     }
   }
 
-  // Carga una capacitacion en el formulario para editarla
   async function startEdit(t: Training) {
     setError(null);
     try {
@@ -216,13 +215,9 @@ export default function CapacitacionesPage() {
       setContent(d.content ?? "");
       setEmbedUrl(d.embedUrl ?? "");
       setFileUrl(d.fileUrl ?? "");
-      // Si tiene PDF y no enlace, abre en modo PDF; si no, modo enlace
       setMediaMode(d.fileUrl && !d.embedUrl ? "pdf" : "link");
       setMinMinutes(d.minMinutes ?? 0);
       setRequireAttendance(d.requireAttendance !== false);
-      setUseKey(Boolean(d.accessKey));
-      setAccessKey(d.accessKey ?? "");
-      setGroupLabel(d.groupLabel ?? "");
       setQuestions(
         (d.questions ?? []).map((q: any) => ({
           question: q.question ?? "",
@@ -233,7 +228,6 @@ export default function CapacitacionesPage() {
           correct: q.correct ?? 0,
         }))
       );
-      // Sube la vista al formulario
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err: any) {
       setError(err.message || "No se pudo cargar para editar.");
@@ -256,7 +250,6 @@ export default function CapacitacionesPage() {
     }
     try {
       setSubmitting(true);
-      // Filtra preguntas validas (con texto y al menos 2 opciones con texto)
       const validQuestions = questions
         .map((q) => ({
           question: q.question.trim(),
@@ -269,13 +262,10 @@ export default function CapacitacionesPage() {
         title,
         description,
         content,
-        // Solo se envia el contenido del modo activo; el otro queda vacio
         embedUrl: mediaMode === "link" ? embedUrl : "",
         fileUrl: mediaMode === "pdf" ? fileUrl : "",
         minMinutes,
         requireAttendance,
-        accessKey: requireAttendance && useKey ? accessKey : "",
-        groupLabel: requireAttendance ? groupLabel : "",
         questions: requireAttendance ? validQuestions : [],
       };
 
@@ -289,12 +279,7 @@ export default function CapacitacionesPage() {
       );
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(
-          data.error ||
-            (editingId
-              ? "No se pudo guardar la capacitacion."
-              : "No se pudo crear la capacitacion.")
-        );
+        throw new Error(data.error || "No se pudo guardar la capacitacion.");
       }
       resetForm();
       load();
@@ -317,7 +302,7 @@ export default function CapacitacionesPage() {
         throw new Error(data.error || "No se pudo eliminar.");
       }
       setItems((prev) => prev.filter((x) => x.id !== t.id));
-      if (viewing?.id === t.id) setViewing(null);
+      if (cohortsOf?.id === t.id) setCohortsOf(null);
     } catch (err: any) {
       setError(err.message || "No se pudo eliminar.");
     } finally {
@@ -325,95 +310,129 @@ export default function CapacitacionesPage() {
     }
   }
 
-  async function toggleActive(t: Training) {
+  // ----------------- Convocatorias -----------------
+
+  async function openCohorts(t: Training) {
+    setCohortsOf(t);
+    setCohorts([]);
+    setNewCohortName("");
+    setNewCohortKey("");
     setError(null);
     try {
-      setTogglingId(t.id);
-      const res = await fetch(`/api/trainings/${t.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ active: !t.active }),
+      setLoadingCohorts(true);
+      const res = await fetch(`/api/trainings/${t.id}/cohorts`, {
+        cache: "no-store",
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "No se pudo actualizar.");
-      }
-      setItems((prev) =>
-        prev.map((x) => (x.id === t.id ? { ...x, active: !t.active } : x))
-      );
-    } catch (err: any) {
-      setError(err.message || "No se pudo actualizar.");
+      if (res.ok) setCohorts(await res.json());
     } finally {
-      setTogglingId(null);
+      setLoadingCohorts(false);
     }
   }
 
-  // Inicia un grupo/convocatoria nuevo: cambia la clave (bloquea al grupo
-  // anterior) y etiqueta las nuevas asistencias con el nombre del grupo.
-  async function confirmRotateGroup() {
-    const t = rotating;
+  async function createCohort() {
+    const t = cohortsOf;
     if (!t) return;
-    if (!newGroup.trim()) {
-      setError("Escribe el nombre del grupo o convocatoria.");
+    if (!newCohortName.trim()) {
+      setError("Escribe el nombre de la convocatoria.");
       return;
     }
     setError(null);
     try {
-      setRotatingBusy(true);
-      const res = await fetch(`/api/trainings/${t.id}`, {
-        method: "PATCH",
+      setCreatingCohort(true);
+      const res = await fetch(`/api/trainings/${t.id}/cohorts`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "rotateGroup",
-          groupLabel: newGroup.trim(),
-          accessKey: newGroupKey.trim() || null,
+          name: newCohortName.trim(),
+          accessKey: newCohortKey.trim() || null,
         }),
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "No se pudo iniciar el grupo.");
-      }
-      setItems((prev) =>
-        prev.map((x) =>
-          x.id === t.id
-            ? {
-                ...x,
-                groupLabel: newGroup.trim(),
-                hasAccessKey: Boolean(newGroupKey.trim()),
-                active: true,
-              }
-            : x
-        )
-      );
-      setRotating(null);
-      setNewGroup("");
-      setNewGroupKey("");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "No se pudo crear.");
+      setCohorts((prev) => [data, ...prev]);
+      setNewCohortName("");
+      setNewCohortKey("");
+      // Actualiza el contador total en la lista
+      load();
     } catch (err: any) {
-      setError(err.message || "No se pudo iniciar el grupo.");
+      setError(err.message || "No se pudo crear la convocatoria.");
     } finally {
-      setRotatingBusy(false);
+      setCreatingCohort(false);
     }
   }
 
-  async function viewAttendances(t: Training) {
-    setViewing(t);
+  async function toggleCohort(c: Cohort) {
+    const t = cohortsOf;
+    if (!t) return;
+    setError(null);
+    try {
+      setCohortBusyId(c.id);
+      const res = await fetch(`/api/trainings/${t.id}/cohorts/${c.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: !c.active }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "No se pudo actualizar.");
+      setCohorts((prev) => prev.map((x) => (x.id === c.id ? data : x)));
+    } catch (err: any) {
+      setError(err.message || "No se pudo actualizar la convocatoria.");
+    } finally {
+      setCohortBusyId(null);
+    }
+  }
+
+  async function confirmDeleteCohort() {
+    const t = cohortsOf;
+    const c = cohortToDelete;
+    if (!t || !c) return;
+    setCohortToDelete(null);
+    setError(null);
+    try {
+      setCohortBusyId(c.id);
+      const res = await fetch(`/api/trainings/${t.id}/cohorts/${c.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "No se pudo eliminar.");
+      }
+      setCohorts((prev) => prev.filter((x) => x.id !== c.id));
+      load();
+    } catch (err: any) {
+      setError(err.message || "No se pudo eliminar la convocatoria.");
+    } finally {
+      setCohortBusyId(null);
+    }
+  }
+
+  function copyCohortLink(t: Training, c: Cohort) {
+    const url = `${window.location.origin}/capacitacion/${t.id}?c=${c.id}`;
+    navigator.clipboard.writeText(url);
+    setCopiedCohortId(c.id);
+    setTimeout(() => setCopiedCohortId(null), 2000);
+  }
+
+  async function viewCohortAttendances(t: Training, c: Cohort) {
+    setViewingCohort(c);
     setAttendances([]);
     try {
       setLoadingAtt(true);
-      const res = await fetch(`/api/trainings/${t.id}/attendance`, {
-        cache: "no-store",
-      });
+      const res = await fetch(
+        `/api/trainings/${t.id}/cohorts/${c.id}/attendance`,
+        { cache: "no-store" }
+      );
       if (res.ok) setAttendances(await res.json());
     } finally {
       setLoadingAtt(false);
     }
   }
 
-  function copyLink(id: string) {
-    const url = `${window.location.origin}/capacitacion/${id}`;
+  function copyInfoLink(t: Training) {
+    const url = `${window.location.origin}/capacitacion/${t.id}`;
     navigator.clipboard.writeText(url);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
+    setCopiedCohortId(t.id);
+    setTimeout(() => setCopiedCohortId(null), 2000);
   }
 
   function csvCell(v: string) {
@@ -421,22 +440,14 @@ export default function CapacitacionesPage() {
     return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   }
 
-  function exportAttendances(t: Training, rows: Attendance[]) {
-    const header = [
-      "Nombre",
-      "Cedula",
-      "Empresa",
-      "Cargo",
-      "Grupo",
-      "Fecha y hora",
-    ];
+  function exportAttendances(c: Cohort, rows: Attendance[]) {
+    const header = ["Nombre", "Cedula", "Empresa", "Cargo", "Fecha y hora"];
     const lines = rows.map((r) =>
       [
         csvCell(r.fullName),
         csvCell(r.idNumber),
         csvCell(r.company ?? ""),
         csvCell(r.position ?? ""),
-        csvCell(r.groupLabel ?? ""),
         csvCell(formatDateTime(r.createdAt)),
       ].join(";")
     );
@@ -445,7 +456,7 @@ export default function CapacitacionesPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `asistencia-${t.title.replace(/\s+/g, "-").toLowerCase()}.csv`;
+    a.download = `asistencia-${c.name.replace(/\s+/g, "-").toLowerCase()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -464,8 +475,9 @@ export default function CapacitacionesPage() {
       <header className="header">
         <h1>Capacitaciones</h1>
         <p>
-          Crea capacitaciones, comparte el enlace publico y lleva el registro
-          de asistencia.
+          Crea una capacitacion una sola vez y reutilizala en varias
+          convocatorias. Cada convocatoria tiene su propia clave, su estado y su
+          registro de asistencia.
         </p>
       </header>
 
@@ -508,8 +520,8 @@ export default function CapacitacionesPage() {
             <div className="field full">
               <label>Material de la capacitacion (opcional)</label>
               <span className="field-help" style={{ marginBottom: "0.5rem" }}>
-                Elige como mostrar el material: sube un PDF (lo mas confiable
-                para PowerPoint) o pega un enlace. Tambien puedes dejarlo solo
+                Elige como mostrar el material: incrusta un enlace o sube un PDF
+                (lo mas confiable para PowerPoint). Tambien puedes dejarlo solo
                 con el contenido de texto de arriba.
               </span>
 
@@ -627,7 +639,7 @@ export default function CapacitacionesPage() {
                   Requiere registro de asistencia
                   <span className="field-help" style={{ display: "block" }}>
                     Si lo desactivas, la capacitacion sera solo informativa
-                    (publica, sin pedir datos ni cuestionario).
+                    (publica, sin pedir datos ni cuestionario ni convocatorias).
                   </span>
                 </span>
               </label>
@@ -651,150 +663,86 @@ export default function CapacitacionesPage() {
                 </span>
               </div>
             )}
-            {requireAttendance && (
-              <div className="field full">
-                <div className="key-row">
-                  <label className="switch-row" style={{ flex: "0 0 auto" }}>
-                    <input
-                      type="checkbox"
-                      checked={useKey}
-                      onChange={(e) => {
-                        const on = e.target.checked;
-                        setUseKey(on);
-                        // No autogenera: el admin la escribe o usa "Generar".
-                        if (!on) setAccessKey("");
-                      }}
-                    />
-                    <span>Proteger con clave de acceso</span>
-                  </label>
-
-                  {useKey && (
-                    <div className="input-with-btn key-input">
-                      <input
-                        id="accessKey"
-                        type="text"
-                        value={accessKey}
-                        onChange={(e) => setAccessKey(e.target.value)}
-                        placeholder="Escribe la clave"
-                      />
-                      <button
-                        type="button"
-                        className="btn btn-ghost"
-                        onClick={() => setAccessKey(generateKey())}
-                      >
-                        Generar
-                      </button>
-                    </div>
-                  )}
-                </div>
-                <span className="field-help">
-                  Por defecto la capacitacion es publica. Activa esto para que
-                  solo quien tenga la clave pueda entrar.
-                </span>
-              </div>
-            )}
-
-            {requireAttendance && (
-              <div className="field full">
-                <label htmlFor="groupLabel">
-                  Grupo / convocatoria actual (opcional)
-                </label>
-                <input
-                  id="groupLabel"
-                  type="text"
-                  value={groupLabel}
-                  onChange={(e) => setGroupLabel(e.target.value)}
-                  placeholder="Ej. Contratistas Octubre 2026"
-                />
-                <span className="field-help">
-                  Nombra la tanda de personas que haran esta capacitacion. Las
-                  asistencias quedan etiquetadas con este grupo. Luego puedes
-                  iniciar un grupo nuevo desde la lista para bloquear al
-                  anterior.
-                </span>
-              </div>
-            )}
           </div>
 
-          {/* Cuestionario opcional (solo si pide asistencia) */}
           {requireAttendance && (
-          <div className="quiz-builder">
-            <div className="quiz-builder-head">
-              <span className="label">Cuestionario (opcional)</span>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={addQuestion}
-              >
-                + Agregar pregunta
-              </button>
-            </div>
-            <p className="field-help">
-              Si agregas preguntas, el asistente debe responder TODAS
-              correctamente para registrar su asistencia.
-            </p>
-
-            {questions.map((q, qi) => (
-              <div key={qi} className="quiz-builder-q">
-                <div className="quiz-builder-q-head">
-                  <input
-                    type="text"
-                    value={q.question}
-                    onChange={(e) =>
-                      updateQuestion(qi, { question: e.target.value })
-                    }
-                    placeholder={`Pregunta ${qi + 1}`}
-                  />
-                  <button
-                    type="button"
-                    className="btn btn-danger"
-                    onClick={() => removeQuestion(qi)}
-                  >
-                    Quitar
-                  </button>
-                </div>
-
-                <div className="quiz-builder-opts">
-                  {q.options.map((opt, oi) => (
-                    <div key={oi} className="quiz-builder-opt">
-                      <input
-                        type="radio"
-                        name={`correct-${qi}`}
-                        checked={q.correct === oi}
-                        onChange={() => updateQuestion(qi, { correct: oi })}
-                        title="Marcar como respuesta correcta"
-                      />
-                      <input
-                        type="text"
-                        value={opt}
-                        onChange={(e) => updateOption(qi, oi, e.target.value)}
-                        placeholder={`Opcion ${oi + 1}`}
-                      />
-                      {q.options.length > 2 && (
-                        <button
-                          type="button"
-                          className="btn btn-ghost"
-                          onClick={() => removeOption(qi, oi)}
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    onClick={() => addOption(qi)}
-                  >
-                    + Opcion
-                  </button>
-                </div>
-                <span className="field-help">
-                  Marca el circulo de la opcion correcta.
-                </span>
+            <div className="quiz-builder">
+              <div className="quiz-builder-head">
+                <span className="label">Cuestionario (opcional)</span>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={addQuestion}
+                >
+                  + Agregar pregunta
+                </button>
               </div>
-            ))}
-          </div>
+              <p className="field-help">
+                Si agregas preguntas, el asistente debe responder TODAS
+                correctamente para registrar su asistencia.
+              </p>
+
+              {questions.map((q, qi) => (
+                <div key={qi} className="quiz-builder-q">
+                  <div className="quiz-builder-q-head">
+                    <input
+                      type="text"
+                      value={q.question}
+                      onChange={(e) =>
+                        updateQuestion(qi, { question: e.target.value })
+                      }
+                      placeholder={`Pregunta ${qi + 1}`}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-danger"
+                      onClick={() => removeQuestion(qi)}
+                    >
+                      Quitar
+                    </button>
+                  </div>
+
+                  <div className="quiz-builder-opts">
+                    {q.options.map((opt, oi) => (
+                      <div key={oi} className="quiz-builder-opt">
+                        <input
+                          type="radio"
+                          name={`correct-${qi}`}
+                          checked={q.correct === oi}
+                          onChange={() => updateQuestion(qi, { correct: oi })}
+                          title="Marcar como respuesta correcta"
+                        />
+                        <input
+                          type="text"
+                          value={opt}
+                          onChange={(e) => updateOption(qi, oi, e.target.value)}
+                          placeholder={`Opcion ${oi + 1}`}
+                        />
+                        {q.options.length > 2 && (
+                          <button
+                            type="button"
+                            className="btn btn-ghost"
+                            onClick={() => removeOption(qi, oi)}
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={() => addOption(qi)}
+                    >
+                      + Opcion
+                    </button>
+                  </div>
+                  <span className="field-help">
+                    Marca el circulo de la opcion correcta.
+                  </span>
+                </div>
+              ))}
+            </div>
           )}
 
           <div className="form-actions" style={{ gap: "0.6rem" }}>
@@ -840,51 +788,40 @@ export default function CapacitacionesPage() {
                   )}
                   <div className="training-meta">
                     {t.requireAttendance ? (
-                      <>
-                        <span className="badge badge-user">
-                          {t._count.attendances} asistente(s)
-                        </span>
-                        <span
-                          className={`badge ${
-                            t.active ? "badge-active" : "badge-inactive"
-                          }`}
-                        >
-                          {t.active ? "● Activa" : "● Desactivada"}
-                        </span>
-                        {t.hasAccessKey && (
-                          <span className="badge badge-user">Con clave</span>
-                        )}
-                        {t.groupLabel && (
-                          <span className="badge badge-group">
-                            Grupo: {t.groupLabel}
-                          </span>
-                        )}
-                      </>
+                      <span className="badge badge-user">
+                        {t._count.attendances} asistente(s) en total
+                      </span>
                     ) : (
                       <span className="badge badge-user">Informativa</span>
                     )}
                   </div>
                   <div className="training-actions">
-                    <a
-                      href={`/capacitacion/${t.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn btn-ghost"
-                    >
-                      Ver
-                    </a>
-                    <button
-                      className="btn btn-ghost"
-                      onClick={() => copyLink(t.id)}
-                    >
-                      {copiedId === t.id ? "Copiado!" : "Copiar enlace"}
-                    </button>
+                    {!t.requireAttendance && (
+                      <>
+                        <a
+                          href={`/capacitacion/${t.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-ghost"
+                        >
+                          Ver
+                        </a>
+                        <button
+                          className="btn btn-ghost"
+                          onClick={() => copyInfoLink(t)}
+                        >
+                          {copiedCohortId === t.id
+                            ? "Copiado!"
+                            : "Copiar enlace"}
+                        </button>
+                      </>
+                    )}
                     {t.requireAttendance && (
                       <button
-                        className="btn btn-ghost"
-                        onClick={() => viewAttendances(t)}
+                        className="btn btn-primary"
+                        onClick={() => openCohorts(t)}
                       >
-                        Ver asistencia
+                        Convocatorias
                       </button>
                     )}
                     <button
@@ -894,37 +831,8 @@ export default function CapacitacionesPage() {
                     >
                       {loadingEdit === t.id ? "..." : "Editar"}
                     </button>
-                    {t.requireAttendance && (
-                      <button
-                        className="btn btn-ghost"
-                        onClick={() => {
-                          setRotating(t);
-                          setNewGroup("");
-                          setNewGroupKey("");
-                          setError(null);
-                        }}
-                      >
-                        Nuevo grupo
-                      </button>
-                    )}
 
-                    {/* Acciones de estado, a la derecha */}
                     <span className="training-actions-right">
-                      {t.requireAttendance && (
-                        <button
-                          className={`btn ${
-                            t.active ? "btn-warning" : "btn-success"
-                          }`}
-                          onClick={() => toggleActive(t)}
-                          disabled={togglingId === t.id}
-                        >
-                          {togglingId === t.id
-                            ? "..."
-                            : t.active
-                            ? "Desactivar"
-                            : "Activar"}
-                        </button>
-                      )}
                       <button
                         className="btn btn-danger"
                         onClick={() => setToDelete(t)}
@@ -941,9 +849,149 @@ export default function CapacitacionesPage() {
         )}
       </section>
 
-      {/* Panel de asistencias */}
-      {viewing && (
-        <div className="modal-overlay" onClick={() => setViewing(null)}>
+      {/* Modal: convocatorias de una capacitacion */}
+      {cohortsOf && (
+        <div className="modal-overlay" onClick={() => setCohortsOf(null)}>
+          <div
+            className="modal modal-lg"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-head">
+              <div>
+                <h3 className="modal-title" style={{ marginBottom: "0.2rem" }}>
+                  Convocatorias
+                </h3>
+                <span className="modal-sub">{cohortsOf.title}</span>
+              </div>
+              <button
+                className="btn btn-ghost"
+                onClick={() => setCohortsOf(null)}
+                aria-label="Cerrar"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="modal-body">
+              {/* Crear nueva convocatoria */}
+              <div className="cohort-create">
+                <div className="field" style={{ flex: 1, minWidth: 180 }}>
+                  <label htmlFor="newCohortName">Nombre de la convocatoria</label>
+                  <input
+                    id="newCohortName"
+                    type="text"
+                    value={newCohortName}
+                    onChange={(e) => setNewCohortName(e.target.value)}
+                    placeholder="Ej. Contratistas Octubre 2026"
+                  />
+                </div>
+                <div className="field" style={{ flex: 1, minWidth: 180 }}>
+                  <label htmlFor="newCohortKey">Clave (opcional)</label>
+                  <div className="input-with-btn">
+                    <input
+                      id="newCohortKey"
+                      type="text"
+                      value={newCohortKey}
+                      onChange={(e) => setNewCohortKey(e.target.value)}
+                      placeholder="Vacia = publica"
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={() => setNewCohortKey(generateKey())}
+                    >
+                      Generar
+                    </button>
+                  </div>
+                </div>
+                <button
+                  className="btn btn-primary"
+                  onClick={createCohort}
+                  disabled={creatingCohort || !newCohortName.trim()}
+                  style={{ alignSelf: "flex-end" }}
+                >
+                  {creatingCohort ? "Creando..." : "Crear convocatoria"}
+                </button>
+              </div>
+
+              <div className="cohort-list">
+                {loadingCohorts ? (
+                  <Loader text="Cargando convocatorias..." />
+                ) : cohorts.length === 0 ? (
+                  <div className="empty-state">
+                    Aun no hay convocatorias. Crea una para compartir el enlace.
+                  </div>
+                ) : (
+                  cohorts.map((c) => (
+                    <div key={c.id} className="cohort-item">
+                      <div className="cohort-head">
+                        <span className="cohort-name">{c.name}</span>
+                        <span
+                          className={`badge ${
+                            c.active ? "badge-active" : "badge-inactive"
+                          }`}
+                        >
+                          {c.active ? "● Abierta" : "● Cerrada"}
+                        </span>
+                        <span className="badge badge-user">
+                          {c.attendances} asistente(s)
+                        </span>
+                        {c.hasAccessKey && (
+                          <span className="badge badge-group">
+                            Clave: {c.accessKey}
+                          </span>
+                        )}
+                      </div>
+                      <div className="cohort-actions">
+                        <button
+                          className="btn btn-ghost"
+                          onClick={() => copyCohortLink(cohortsOf, c)}
+                        >
+                          {copiedCohortId === c.id
+                            ? "Copiado!"
+                            : "Copiar enlace"}
+                        </button>
+                        <button
+                          className="btn btn-ghost"
+                          onClick={() => viewCohortAttendances(cohortsOf, c)}
+                        >
+                          Ver asistencia
+                        </button>
+                        <button
+                          className={`btn ${
+                            c.active ? "btn-warning" : "btn-success"
+                          }`}
+                          onClick={() => toggleCohort(c)}
+                          disabled={cohortBusyId === c.id}
+                        >
+                          {cohortBusyId === c.id
+                            ? "..."
+                            : c.active
+                            ? "Cerrar"
+                            : "Abrir"}
+                        </button>
+                        <button
+                          className="btn btn-danger"
+                          onClick={() => setCohortToDelete(c)}
+                          disabled={cohortBusyId === c.id}
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: asistencias de una convocatoria */}
+      {viewingCohort && (
+        <div className="modal-overlay" onClick={() => setViewingCohort(null)}>
           <div
             className="modal modal-lg"
             role="dialog"
@@ -955,11 +1003,11 @@ export default function CapacitacionesPage() {
                 <h3 className="modal-title" style={{ marginBottom: "0.2rem" }}>
                   Asistencia
                 </h3>
-                <span className="modal-sub">{viewing.title}</span>
+                <span className="modal-sub">{viewingCohort.name}</span>
               </div>
               <button
                 className="btn btn-ghost"
-                onClick={() => setViewing(null)}
+                onClick={() => setViewingCohort(null)}
                 aria-label="Cerrar"
               >
                 ✕
@@ -971,7 +1019,7 @@ export default function CapacitacionesPage() {
                 <Loader text="Cargando asistencia..." />
               ) : attendances.length === 0 ? (
                 <div className="empty-state">
-                  Aun nadie ha registrado asistencia.
+                  Aun nadie ha registrado asistencia en esta convocatoria.
                 </div>
               ) : (
                 <div className="table-wrap">
@@ -982,7 +1030,6 @@ export default function CapacitacionesPage() {
                         <th>Cedula</th>
                         <th>Empresa</th>
                         <th>Cargo</th>
-                        <th>Grupo</th>
                         <th>Fecha y hora</th>
                       </tr>
                     </thead>
@@ -993,7 +1040,6 @@ export default function CapacitacionesPage() {
                           <td data-label="Cedula">{a.idNumber}</td>
                           <td data-label="Empresa">{a.company || "-"}</td>
                           <td data-label="Cargo">{a.position || "-"}</td>
-                          <td data-label="Grupo">{a.groupLabel || "-"}</td>
                           <td data-label="Fecha y hora">
                             {formatDateTime(a.createdAt)}
                           </td>
@@ -1011,100 +1057,10 @@ export default function CapacitacionesPage() {
               </span>
               <button
                 className="btn btn-primary"
-                onClick={() => exportAttendances(viewing, attendances)}
+                onClick={() => exportAttendances(viewingCohort, attendances)}
                 disabled={attendances.length === 0}
               >
                 Exportar Excel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal: iniciar un grupo/convocatoria nuevo */}
-      {rotating && (
-        <div className="modal-overlay" onClick={() => setRotating(null)}>
-          <div
-            className="modal"
-            role="dialog"
-            aria-modal="true"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="modal-head">
-              <div>
-                <h3 className="modal-title" style={{ marginBottom: "0.2rem" }}>
-                  Iniciar grupo nuevo
-                </h3>
-                <span className="modal-sub">{rotating.title}</span>
-              </div>
-              <button
-                className="btn btn-ghost"
-                onClick={() => setRotating(null)}
-                aria-label="Cerrar"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="modal-body">
-              <p className="field-help" style={{ marginBottom: "1rem" }}>
-                Al iniciar un grupo nuevo se cambia la clave de acceso, de modo
-                que el grupo anterior ya no podra entrar. Las nuevas asistencias
-                quedaran etiquetadas con este grupo. Las asistencias anteriores
-                se conservan.
-              </p>
-              <div className="field full" style={{ marginBottom: "0.9rem" }}>
-                <label htmlFor="newGroup">Nombre del grupo / convocatoria</label>
-                <input
-                  id="newGroup"
-                  type="text"
-                  value={newGroup}
-                  onChange={(e) => setNewGroup(e.target.value)}
-                  placeholder="Ej. Contratistas Noviembre 2026"
-                  autoFocus
-                />
-              </div>
-              <div className="field full">
-                <label htmlFor="newGroupKey">
-                  Nueva clave de acceso (opcional)
-                </label>
-                <div className="input-with-btn">
-                  <input
-                    id="newGroupKey"
-                    type="text"
-                    value={newGroupKey}
-                    onChange={(e) => setNewGroupKey(e.target.value)}
-                    placeholder="Dejala vacia para que sea publica"
-                  />
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    onClick={() => setNewGroupKey(generateKey())}
-                  >
-                    Generar
-                  </button>
-                </div>
-                <span className="field-help">
-                  Si dejas la clave vacia, cualquiera con el enlace podra
-                  entrar al nuevo grupo.
-                </span>
-              </div>
-            </div>
-
-            <div className="modal-foot">
-              <button
-                className="btn btn-ghost"
-                onClick={() => setRotating(null)}
-                disabled={rotatingBusy}
-              >
-                Cancelar
-              </button>
-              <button
-                className="btn btn-primary"
-                onClick={confirmRotateGroup}
-                disabled={rotatingBusy || !newGroup.trim()}
-              >
-                {rotatingBusy ? "Iniciando..." : "Iniciar grupo"}
               </button>
             </div>
           </div>
@@ -1116,7 +1072,7 @@ export default function CapacitacionesPage() {
         title="Eliminar capacitacion"
         message={
           toDelete
-            ? `Vas a eliminar "${toDelete.title}" y todos sus registros de asistencia. Esta accion no se puede deshacer.`
+            ? `Vas a eliminar "${toDelete.title}" con todas sus convocatorias y registros de asistencia. Esta accion no se puede deshacer.`
             : ""
         }
         confirmText="Eliminar"
@@ -1124,6 +1080,21 @@ export default function CapacitacionesPage() {
         loading={deletingId !== null}
         onConfirm={confirmDelete}
         onCancel={() => setToDelete(null)}
+      />
+
+      <ConfirmDialog
+        open={cohortToDelete !== null}
+        title="Eliminar convocatoria"
+        message={
+          cohortToDelete
+            ? `Vas a eliminar la convocatoria "${cohortToDelete.name}" y sus ${cohortToDelete.attendances} registro(s) de asistencia. Esta accion no se puede deshacer.`
+            : ""
+        }
+        confirmText="Eliminar"
+        danger
+        loading={cohortBusyId !== null}
+        onConfirm={confirmDeleteCohort}
+        onCancel={() => setCohortToDelete(null)}
       />
     </main>
   );

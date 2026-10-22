@@ -80,15 +80,34 @@ model Training {
   fileUrl     String?  // PDF subido a Supabase - opcional
   minMinutes  Int      @default(0) // Tiempo minimo (min) antes de confirmar; 0 = sin temporizador
   requireAttendance Boolean @default(true) // Si pide registro de asistencia (false = solo informativa)
-  accessKey   String?  // Clave de acceso opcional; si existe, el link la pide
-  groupLabel  String?  // Grupo/convocatoria/empresa activa actual (etiqueta la tanda vigente)
-  active      Boolean  @default(true) // Si los registros estan abiertos
+  accessKey   String?  // (legado) Clave de acceso a nivel capacitacion; ahora se usa por convocatoria
+  groupLabel  String?  // (legado) Grupo activo; reemplazado por convocatorias
+  active      Boolean  @default(true) // Si la capacitacion en general esta disponible
   createdAt   DateTime @default(now())
 
   attendances TrainingAttendance[]
   questions   TrainingQuestion[]
+  cohorts     TrainingCohort[]
 
   @@map("trainings")
+}
+
+// Convocatoria: una "tanda" de personas que realiza una capacitacion.
+// Una capacitacion (reutilizable) puede tener muchas convocatorias.
+// Cada convocatoria tiene su propia clave, su estado y sus asistencias.
+model TrainingCohort {
+  id         String   @id @default(cuid())
+  trainingId String
+  name       String   // Ej. "Contratistas Octubre 2026", "Empresa XYZ"
+  accessKey  String?  // Clave de acceso opcional de ESTA convocatoria
+  active     Boolean  @default(true) // Si la convocatoria acepta registros
+  createdAt  DateTime @default(now())
+
+  training    Training             @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+  attendances TrainingAttendance[]
+
+  @@index([trainingId])
+  @@map("training_cohorts")
 }
 
 // Pregunta del cuestionario de una capacitacion
@@ -112,14 +131,17 @@ model TrainingAttendance {
   trainingId String
   fullName   String   // Nombre completo del asistente
   idNumber   String   // Cedula
+  cohortId   String?  // Convocatoria a la que pertenece esta asistencia
   company    String?  // Empresa (para contratistas)
   position   String?  // Cargo (opcional)
-  groupLabel String?  // Grupo/convocatoria al que pertenece esta asistencia
+  groupLabel String?  // (legado) Etiqueta de grupo anterior
   passedQuiz Boolean  @default(false) // Si aprobo el cuestionario
   createdAt  DateTime @default(now()) // Fecha/hora en que la realizo
 
-  training   Training @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+  training   Training        @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+  cohort     TrainingCohort? @relation(fields: [cohortId], references: [id], onDelete: SetNull)
 
   @@index([trainingId])
+  @@index([cohortId])
   @@map("training_attendances")
 }

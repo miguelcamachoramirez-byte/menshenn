@@ -39,8 +39,7 @@ export async function POST(
       select: {
         id: true,
         active: true,
-        accessKey: true,
-        groupLabel: true,
+        requireAttendance: true,
         questions: {
           select: { id: true, correct: true },
         },
@@ -52,12 +51,6 @@ export async function POST(
         { status: 404 }
       );
     }
-    if (!training.active) {
-      return NextResponse.json(
-        { error: "Esta capacitacion esta desactivada." },
-        { status: 400 }
-      );
-    }
 
     const body = await request.json();
     const fullName = String(body?.fullName ?? "").trim();
@@ -65,11 +58,36 @@ export async function POST(
     const company = body?.company ? String(body.company).trim() : null;
     const position = body?.position ? String(body.position).trim() : null;
     const accessKey = body?.accessKey ? String(body.accessKey) : null;
+    const cohortId = body?.cohortId ? String(body.cohortId) : null;
     // Respuestas del cuestionario: { [questionId]: indiceSeleccionado }
     const answers = body?.answers ?? {};
 
-    // Valida clave de acceso si la capacitacion la requiere
-    if (training.accessKey && accessKey !== training.accessKey) {
+    // Debe venir una convocatoria valida y abierta
+    if (!cohortId) {
+      return NextResponse.json(
+        { error: "No se indico la convocatoria." },
+        { status: 400 }
+      );
+    }
+    const cohort = await prisma.trainingCohort.findFirst({
+      where: { id: cohortId, trainingId: training.id },
+      select: { id: true, accessKey: true, active: true },
+    });
+    if (!cohort) {
+      return NextResponse.json(
+        { error: "La convocatoria no existe." },
+        { status: 404 }
+      );
+    }
+    if (!cohort.active) {
+      return NextResponse.json(
+        { error: "Esta convocatoria esta cerrada." },
+        { status: 400 }
+      );
+    }
+
+    // Valida clave de acceso de la convocatoria (si tiene)
+    if (cohort.accessKey && accessKey !== cohort.accessKey) {
       return NextResponse.json(
         { error: "Clave de acceso incorrecta." },
         { status: 403 }
@@ -100,19 +118,14 @@ export async function POST(
       }
     }
 
-    // Evita registros duplicados de la misma persona dentro del MISMO grupo.
-    // Si se inicio un grupo nuevo (rotacion), la misma cedula puede volver a
-    // registrarse para la nueva convocatoria.
+    // Evita registros duplicados de la misma persona dentro de la MISMA
+    // convocatoria. La misma cedula si puede registrarse en otra convocatoria.
     const existing = await prisma.trainingAttendance.findFirst({
-      where: {
-        trainingId: params.id,
-        idNumber,
-        groupLabel: training.groupLabel ?? null,
-      },
+      where: { cohortId: cohort.id, idNumber },
     });
     if (existing) {
       return NextResponse.json(
-        { error: "Ya registraste tu asistencia a esta capacitacion." },
+        { error: "Ya registraste tu asistencia a esta convocatoria." },
         { status: 409 }
       );
     }
@@ -120,11 +133,11 @@ export async function POST(
     const attendance = await prisma.trainingAttendance.create({
       data: {
         trainingId: params.id,
+        cohortId: cohort.id,
         fullName,
         idNumber,
         company,
         position,
-        groupLabel: training.groupLabel ?? null,
         passedQuiz: hasQuiz,
       },
     });

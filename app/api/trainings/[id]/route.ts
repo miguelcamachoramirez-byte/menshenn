@@ -22,7 +22,6 @@ export async function GET(
         fileUrl: true,
         minMinutes: true,
         requireAttendance: true,
-        accessKey: true,
         active: true,
         questions: {
           orderBy: { orden: "asc" },
@@ -40,8 +39,61 @@ export async function GET(
 
     const url = new URL(request.url);
     const providedKey = url.searchParams.get("key");
-    const needsKey = Boolean(training.accessKey);
-    const keyOk = !needsKey || providedKey === training.accessKey;
+    const cohortId = url.searchParams.get("c");
+
+    // Resuelve la convocatoria. Si no viene una en la URL (?c=), intenta usar
+    // la unica convocatoria activa (comodidad cuando solo hay una).
+    let cohort = null as
+      | { id: string; name: string; accessKey: string | null; active: boolean }
+      | null;
+
+    if (training.requireAttendance) {
+      if (cohortId) {
+        cohort = await prisma.trainingCohort.findFirst({
+          where: { id: cohortId, trainingId: training.id },
+          select: { id: true, name: true, accessKey: true, active: true },
+        });
+      } else {
+        const activeCohorts = await prisma.trainingCohort.findMany({
+          where: { trainingId: training.id, active: true },
+          select: { id: true, name: true, accessKey: true, active: true },
+          take: 2,
+        });
+        if (activeCohorts.length === 1) cohort = activeCohorts[0];
+      }
+
+      // Si pide asistencia pero no hay convocatoria valida: no disponible
+      if (!cohort) {
+        return NextResponse.json({
+          id: training.id,
+          title: training.title,
+          description: training.description,
+          requireAttendance: true,
+          active: false,
+          noCohort: true,
+          locked: false,
+        });
+      }
+
+      // Convocatoria cerrada
+      if (!cohort.active) {
+        return NextResponse.json({
+          id: training.id,
+          title: training.title,
+          description: training.description,
+          requireAttendance: true,
+          active: false,
+          cohortId: cohort.id,
+          cohortName: cohort.name,
+          locked: false,
+        });
+      }
+    }
+
+    // Clave: de la convocatoria (si pide asistencia) o ninguna (informativa)
+    const requiredKey = training.requireAttendance ? cohort?.accessKey : null;
+    const needsKey = Boolean(requiredKey);
+    const keyOk = !needsKey || providedKey === requiredKey;
 
     // Si requiere clave y no coincide: solo metadatos minimos, sin contenido
     if (!keyOk) {
@@ -50,7 +102,9 @@ export async function GET(
         title: training.title,
         description: training.description,
         requiresKey: true,
-        active: training.active,
+        active: true,
+        cohortId: cohort?.id,
+        cohortName: cohort?.name,
         locked: true,
       });
     }
@@ -66,7 +120,9 @@ export async function GET(
       minMinutes: training.minMinutes,
       requireAttendance: training.requireAttendance,
       requiresKey: needsKey,
-      active: training.active,
+      active: true,
+      cohortId: cohort?.id ?? null,
+      cohortName: cohort?.name ?? null,
       locked: false,
       questions: training.questions.map((q) => ({
         id: q.id,

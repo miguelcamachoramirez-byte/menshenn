@@ -22,6 +22,9 @@ type Training = {
   requiresKey?: boolean;
   active: boolean;
   locked?: boolean;
+  noCohort?: boolean;
+  cohortId?: string | null;
+  cohortName?: string | null;
   questions: Question[];
 };
 
@@ -90,6 +93,16 @@ export default function CapacitacionWizard() {
   const params = useParams();
   const id = String(params?.id ?? "");
 
+  // Convocatoria indicada en la URL (?c=...). La leemos del navegador para no
+  // requerir un Suspense boundary con useSearchParams.
+  const [cohortId, setCohortId] = useState<string>("");
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const c = new URLSearchParams(window.location.search).get("c");
+      if (c) setCohortId(c);
+    }
+  }, []);
+
   const [training, setTraining] = useState<Training | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -121,7 +134,10 @@ export default function CapacitacionWizard() {
   const [error, setError] = useState<string | null>(null);
 
   async function loadTraining(key?: string) {
-    const qs = key ? `?key=${encodeURIComponent(key)}` : "";
+    const qp = new URLSearchParams();
+    if (cohortId) qp.set("c", cohortId);
+    if (key) qp.set("key", key);
+    const qs = qp.toString() ? `?${qp.toString()}` : "";
     const res = await fetch(`/api/trainings/${id}${qs}`, {
       cache: "no-store",
     });
@@ -135,6 +151,7 @@ export default function CapacitacionWizard() {
   useEffect(() => {
     (async () => {
       try {
+        setLoading(true);
         const data = await loadTraining();
         if (!data) return;
         setTraining(data);
@@ -147,7 +164,8 @@ export default function CapacitacionWizard() {
         setLoading(false);
       }
     })();
-  }, [id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, cohortId]);
 
   async function submitKey(e: FormEvent) {
     e.preventDefault();
@@ -237,6 +255,7 @@ export default function CapacitacionWizard() {
           position,
           answers,
           accessKey,
+          cohortId: training?.cohortId ?? cohortId,
         }),
       });
       if (!res.ok) {
@@ -299,16 +318,34 @@ export default function CapacitacionWizard() {
     );
   }
 
-  // Requiere registro pero los registros estan cerrados
-  if (training.requireAttendance && !training.active) {
+  // No hay convocatoria valida en el enlace (o ninguna activa)
+  if (training.requireAttendance && training.noCohort) {
     return (
       <main className="container">
         <header className="header">
           <h1>{training.title}</h1>
         </header>
         <div className="empty-state">
-          Esta capacitacion no esta disponible en este momento. Si ya la
-          realizaste, tu asistencia quedo guardada.
+          Este enlace no tiene una convocatoria activa. Solicita a la empresa el
+          enlace correcto de la convocatoria vigente.
+        </div>
+      </main>
+    );
+  }
+
+  // Requiere registro pero la convocatoria esta cerrada
+  if (training.requireAttendance && !training.active) {
+    return (
+      <main className="container">
+        <header className="header">
+          <h1>{training.title}</h1>
+          {training.cohortName && (
+            <p className="subtitle">Convocatoria: {training.cohortName}</p>
+          )}
+        </header>
+        <div className="empty-state">
+          Esta convocatoria esta cerrada. Si ya la realizaste, tu asistencia
+          quedo guardada.
         </div>
       </main>
     );
