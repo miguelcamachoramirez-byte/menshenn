@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import Loader from "../components/Loader";
 import ConfirmDialog from "../components/ConfirmDialog";
+import ShareIcon from "../components/ShareIcon";
 
 type Training = {
   id: string;
@@ -135,6 +136,7 @@ export default function CapacitacionesPage() {
   const [creatingCohort, setCreatingCohort] = useState(false);
   const [cohortBusyId, setCohortBusyId] = useState<string | null>(null);
   const [copiedCohortId, setCopiedCohortId] = useState<string | null>(null);
+  const [sharedCohortId, setSharedCohortId] = useState<string | null>(null);
   const [cohortToDelete, setCohortToDelete] = useState<Cohort | null>(null);
 
   // --- Asistencias de una convocatoria ---
@@ -406,11 +408,18 @@ export default function CapacitacionesPage() {
     }
   }
 
-  function copyCohortLink(t: Training, c: Cohort) {
+  // Copia un mensaje listo para pegar (WhatsApp, correo) con enlace + clave.
+  function shareCohort(t: Training, c: Cohort) {
     const url = `${window.location.origin}/capacitacion/${t.id}?c=${c.id}`;
-    navigator.clipboard.writeText(url);
-    setCopiedCohortId(c.id);
-    setTimeout(() => setCopiedCohortId(null), 2000);
+    const lines = [
+      `Capacitacion: ${t.title}`,
+      `Convocatoria: ${c.name}`,
+      `Enlace: ${url}`,
+    ];
+    if (c.accessKey) lines.push(`Clave de acceso: ${c.accessKey}`);
+    navigator.clipboard.writeText(lines.join("\n"));
+    setSharedCohortId(c.id);
+    setTimeout(() => setSharedCohortId(null), 2000);
   }
 
   async function viewCohortAttendances(t: Training, c: Cohort) {
@@ -955,14 +964,6 @@ export default function CapacitacionesPage() {
                         </a>
                         <button
                           className="btn btn-ghost"
-                          onClick={() => copyCohortLink(cohortsOf, c)}
-                        >
-                          {copiedCohortId === c.id
-                            ? "Copiado!"
-                            : "Copiar enlace"}
-                        </button>
-                        <button
-                          className="btn btn-ghost"
                           onClick={() => viewCohortAttendances(cohortsOf, c)}
                         >
                           Ver asistencia
@@ -987,6 +988,21 @@ export default function CapacitacionesPage() {
                         >
                           Eliminar
                         </button>
+
+                        {/* Compartir: icono a la derecha */}
+                        <span className="cohort-share">
+                          <button
+                            className="icon-btn"
+                            onClick={() => shareCohort(cohortsOf, c)}
+                            title="Compartir: copia enlace y clave listos para pegar"
+                            aria-label="Compartir"
+                          >
+                            <ShareIcon />
+                            {sharedCohortId === c.id && (
+                              <span className="icon-btn-hint">Copiado!</span>
+                            )}
+                          </button>
+                        </span>
                       </div>
                     </div>
                   ))

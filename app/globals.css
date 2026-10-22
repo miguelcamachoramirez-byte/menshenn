@@ -2064,6 +2064,60 @@ body {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
+  align-items: stretch;
+}
+
+/* Todos los botones de la fila a la misma altura y alineados */
+.cohort-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 0.9rem;
+}
+
+/* Grupo de iconos (compartir / copiar) empujado a la derecha */
+.cohort-share {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.icon-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  background: transparent;
+  color: var(--muted, #9aa4b2);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.icon-btn:hover {
+  color: var(--accent, #6366f1);
+  border-color: var(--accent, #6366f1);
+  background: rgba(99, 102, 241, 0.08);
+}
+
+/* Globo "Copiado!" que aparece sobre el icono */
+.icon-btn-hint {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent, #6366f1);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.15rem 0.45rem;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 /* Boton ambar (desactivar) y verde (activar) */
