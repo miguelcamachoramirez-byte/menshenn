@@ -467,7 +467,7 @@ export default function CapacitacionesPage() {
         <div className="user-info">Capacitaciones</div>
         <div className="topbar-actions">
           <Link href="/" className="nav-link">
-            Volver a reportes
+            Inicio
           </Link>
         </div>
       </div>

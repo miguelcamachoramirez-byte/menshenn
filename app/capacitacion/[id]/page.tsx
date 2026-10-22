@@ -95,18 +95,17 @@ export default function CapacitacionWizard() {
   const params = useParams();
   const id = String(params?.id ?? "");
 
-  // Convocatoria indicada en la URL (?c=...). La leemos del navegador para no
-  // requerir un Suspense boundary con useSearchParams.
-  const [cohortId, setCohortId] = useState<string>("");
-  const [preview, setPreview] = useState(false);
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const sp = new URLSearchParams(window.location.search);
-      const c = sp.get("c");
-      if (c) setCohortId(c);
-      if (sp.get("preview") === "1") setPreview(true);
-    }
-  }, []);
+  // Convocatoria y preview indicados en la URL (?c=..., ?preview=1).
+  // Se leen de forma SINCRONA en el primer render (lazy initializer) para que
+  // la primera carga ya use la convocatoria correcta y no haya parpadeo.
+  const [cohortId] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("c") ?? "";
+  });
+  const [preview] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).get("preview") === "1";
+  });
 
   const [training, setTraining] = useState<Training | null>(null);
   const [loading, setLoading] = useState(true);
@@ -200,12 +199,22 @@ export default function CapacitacionWizard() {
   const hasQuiz = (training?.questions?.length ?? 0) > 0;
 
   // Pasos del wizard segun la configuracion
-  const steps = ["Capacitacion", ...(hasQuiz ? ["Cuestionario"] : []), "Datos"];
+  const steps = [
+    "Capacitacion",
+    ...(hasQuiz ? ["Cuestionario"] : []),
+    "Asistencia",
+  ];
 
   function goToAfterViewing() {
     setError(null);
     if (hasQuiz) setStep(2);
     else setStep(3);
+  }
+
+  // Desde el paso de asistencia, vuelve al cuestionario (si hay) o a ver.
+  function goBackFromData() {
+    setError(null);
+    setStep(hasQuiz ? 2 : 1);
   }
 
   async function verifyQuiz() {
@@ -597,7 +606,7 @@ export default function CapacitacionWizard() {
       {/* PASO 3: Datos del asistente */}
       {step === 3 && (
         <section className="card">
-          <h2>Tus datos</h2>
+          <h2>Asistencia</h2>
           <p className="subtitle" style={{ marginBottom: "1.2rem" }}>
             Completa tus datos para dejar constancia de que realizaste esta
             capacitacion.
@@ -645,7 +654,15 @@ export default function CapacitacionWizard() {
                 />
               </div>
             </div>
-            <div className="form-actions">
+            <div className="form-actions" style={{ gap: "0.6rem" }}>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={goBackFromData}
+                disabled={submitting}
+              >
+                Atras
+              </button>
               <button
                 type="submit"
                 className="btn btn-primary"

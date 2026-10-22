@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Loader from "../components/Loader";
 import ConfirmDialog from "../components/ConfirmDialog";
+import { roleLabel } from "@modules/shared/roles";
 
 type User = {
   id: string;
@@ -174,7 +175,7 @@ export default function AdminPage() {
         <div className="user-info">Administracion de usuarios</div>
         <div className="topbar-actions">
           <Link href="/" className="nav-link">
-            Volver a reportes
+            Inicio
           </Link>
         </div>
       </div>
@@ -258,7 +259,7 @@ export default function AdminPage() {
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
               >
-                <option value="user">Usuario</option>
+                <option value="user">Colaborador</option>
                 <option value="admin">Administrador</option>
               </select>
             </div>
@@ -317,7 +318,7 @@ export default function AdminPage() {
                           u.role === "admin" ? "badge-admin" : "badge-user"
                         }`}
                       >
-                        {u.role}
+                        {roleLabel(u.role)}
                       </span>
                     </td>
                     <td data-label="Creado">{formatDate(u.createdAt)}</td>

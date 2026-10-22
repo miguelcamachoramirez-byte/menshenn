@@ -104,7 +104,7 @@ export default function RiskTypesPage() {
       <div className="topbar">
         <div className="user-info">Tipos de reporte</div>
         <div className="topbar-actions">
-          <Link href="/" className="nav-link">
+          <Link href="/reportes" className="nav-link">
             Volver a reportes
           </Link>
         </div>

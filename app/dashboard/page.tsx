@@ -65,7 +65,7 @@ export default function DashboardPage() {
       <div className="topbar">
         <div className="user-info">Metricas</div>
         <div className="topbar-actions">
-          <Link href="/" className="nav-link">
+          <Link href="/reportes" className="nav-link">
             Volver a reportes
           </Link>
         </div>
