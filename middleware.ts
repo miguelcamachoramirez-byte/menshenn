@@ -7,9 +7,19 @@ const PUBLIC_PATHS = ["/login", "/api/auth/login"];
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  const isPublic = PUBLIC_PATHS.some(
-    (p) => pathname === p || pathname.startsWith(p + "/")
-  );
+  // Rutas publicas de capacitaciones:
+  // - La pagina publica /capacitacion/[id]
+  // - El API para ver una capacitacion y registrar asistencia.
+  //   (El GET admin y DELETE de estas rutas se validan en el propio handler.)
+  const isPublicTraining =
+    pathname.startsWith("/capacitacion/") ||
+    /^\/api\/trainings\/[^/]+$/.test(pathname) ||
+    /^\/api\/trainings\/[^/]+\/attendance$/.test(pathname) ||
+    /^\/api\/trainings\/[^/]+\/verify$/.test(pathname);
+
+  const isPublic =
+    PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/")) ||
+    isPublicTraining;
 
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   const session = await verifySessionToken(token);
@@ -22,7 +32,10 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/dashboard/") ||
     pathname.startsWith("/api/dashboard") ||
     pathname === "/recipients" ||
-    pathname.startsWith("/recipients/");
+    pathname.startsWith("/recipients/") ||
+    pathname === "/capacitaciones" ||
+    pathname.startsWith("/capacitaciones/") ||
+    pathname.startsWith("/api/trainings");
 
   // API protegida -> responde 401/403 en JSON
   if (pathname.startsWith("/api/")) {

@@ -401,6 +401,9 @@ export default function HomePage() {
               <Link href="/recipients" className="nav-link">
                 Tipos de reporte
               </Link>
+              <Link href="/capacitaciones" className="nav-link">
+                Capacitaciones
+              </Link>
               <Link href="/admin" className="nav-link">
                 Administrar usuarios
               </Link>

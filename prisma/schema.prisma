@@ -69,3 +69,57 @@ model ReportEdit {
   @@index([reportId])
   @@map("report_edits")
 }
+
+// Capacitacion (se monta en la app, se visualiza publicamente por link)
+model Training {
+  id          String   @id @default(cuid())
+  title       String   // Titulo de la capacitacion
+  description String?  // Descripcion corta
+  content     String?  // Contenido en texto (puede llevar saltos de linea)
+  embedUrl    String?  // Enlace externo a incrustar (video, web) - opcional
+  fileUrl     String?  // PDF subido a Supabase - opcional
+  minMinutes  Int      @default(0) // Tiempo minimo (min) antes de confirmar; 0 = sin temporizador
+  requireAttendance Boolean @default(true) // Si pide registro de asistencia (false = solo informativa)
+  accessKey   String?  // Clave de acceso opcional; si existe, el link la pide
+  groupLabel  String?  // Grupo/convocatoria/empresa activa actual (etiqueta la tanda vigente)
+  active      Boolean  @default(true) // Si los registros estan abiertos
+  createdAt   DateTime @default(now())
+
+  attendances TrainingAttendance[]
+  questions   TrainingQuestion[]
+
+  @@map("trainings")
+}
+
+// Pregunta del cuestionario de una capacitacion
+model TrainingQuestion {
+  id         String   @id @default(cuid())
+  trainingId String
+  question   String   // Texto de la pregunta
+  options    String   // Opciones separadas por salto de linea (JSON string)
+  correct    Int      // Indice de la opcion correcta (0, 1, 2...)
+  orden      Int      @default(0)
+
+  training   Training @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+
+  @@index([trainingId])
+  @@map("training_questions")
+}
+
+// Registro de asistencia: quien realizo la capacitacion
+model TrainingAttendance {
+  id         String   @id @default(cuid())
+  trainingId String
+  fullName   String   // Nombre completo del asistente
+  idNumber   String   // Cedula
+  company    String?  // Empresa (para contratistas)
+  position   String?  // Cargo (opcional)
+  groupLabel String?  // Grupo/convocatoria al que pertenece esta asistencia
+  passedQuiz Boolean  @default(false) // Si aprobo el cuestionario
+  createdAt  DateTime @default(now()) // Fecha/hora en que la realizo
+
+  training   Training @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+
+  @@index([trainingId])
+  @@map("training_attendances")
+}

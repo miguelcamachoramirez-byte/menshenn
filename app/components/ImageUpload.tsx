@@ -27,18 +27,80 @@ export default function ImageUpload({ existingUrl, file, onSelect }: Props) {
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
-  function pick(f: File | undefined | null) {
+  const [working, setWorking] = useState(false);
+
+  // Comprime y redimensiona la imagen en el navegador antes de subirla.
+  // Reduce mucho el peso (ej. 3 MB -> ~300 KB), ahorrando almacenamiento.
+  async function compressImage(f: File): Promise<File> {
+    // Los GIF no se comprimen (se perderia la animacion)
+    if (f.type === "image/gif") return f;
+
+    const dataUrl: string = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(f);
+    });
+
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = reject;
+      image.src = dataUrl;
+    });
+
+    const MAX = 1600; // lado maximo en px
+    let { width, height } = img;
+    if (width > MAX || height > MAX) {
+      if (width >= height) {
+        height = Math.round((height * MAX) / width);
+        width = MAX;
+      } else {
+        width = Math.round((width * MAX) / height);
+        height = MAX;
+      }
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return f;
+    ctx.drawImage(img, 0, 0, width, height);
+
+    const blob: Blob | null = await new Promise((resolve) =>
+      canvas.toBlob((b) => resolve(b), "image/jpeg", 0.8)
+    );
+    if (!blob) return f;
+
+    // Si por algun motivo quedo mas pesada que el original, usa el original
+    if (blob.size >= f.size) return f;
+
+    const name = f.name.replace(/\.[^.]+$/, "") + ".jpg";
+    return new File([blob], name, { type: "image/jpeg" });
+  }
+
+  async function pick(f: File | undefined | null) {
     setError(null);
     if (!f) return;
     if (!f.type.startsWith("image/")) {
       setError("El archivo debe ser una imagen.");
       return;
     }
-    if (f.size > 5 * 1024 * 1024) {
-      setError("La imagen supera el limite de 5 MB.");
+    if (f.size > 15 * 1024 * 1024) {
+      setError("La imagen es demasiado grande (max 15 MB).");
       return;
     }
-    onSelect(f);
+    try {
+      setWorking(true);
+      const compressed = await compressImage(f);
+      onSelect(compressed);
+    } catch {
+      // Si la compresion falla, usa el original
+      onSelect(f);
+    } finally {
+      setWorking(false);
+    }
   }
 
   function handleDrop(e: DragEvent<HTMLDivElement>) {
@@ -80,16 +142,22 @@ export default function ImageUpload({ existingUrl, file, onSelect }: Props) {
           role="button"
           tabIndex={0}
         >
-          <span className="dropzone-icon" aria-hidden="true">
-            🖼
-          </span>
-          <span>
-            Arrastra una imagen aqui o <strong>haz clic</strong> para
-            seleccionar
-          </span>
-          <span className="dropzone-hint">
-            JPG, PNG, WEBP o GIF (max 5 MB)
-          </span>
+          {working ? (
+            <span>Procesando imagen...</span>
+          ) : (
+            <>
+              <span className="dropzone-icon" aria-hidden="true">
+                🖼
+              </span>
+              <span>
+                Arrastra una imagen aqui o <strong>haz clic</strong> para
+                seleccionar
+              </span>
+              <span className="dropzone-hint">
+                Se optimiza automaticamente (JPG, PNG, WEBP o GIF)
+              </span>
+            </>
+          )}
         </div>
       )}
 
